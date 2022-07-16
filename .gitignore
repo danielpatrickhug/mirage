@@ -53,7 +53,7 @@ dev_scripts/*
 *config.json
 mirage.egg-info
 
-
+venv/*
 
 # Docs build #
 docs/_build
