@@ -16,15 +16,27 @@ from mirage.logging import logging_functions
 from mirage.utils.constants import LOG_CONFIG_FILENAME, STANDARD_LOGFILE_NAME
 
 
-classdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../'))
-log_config_file = os.path.join(classdir, 'logging', LOG_CONFIG_FILENAME)
+classdir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
+log_config_file = os.path.join(classdir, "logging", LOG_CONFIG_FILENAME)
 logging_functions.create_logger(log_config_file, STANDARD_LOGFILE_NAME)
 
 
-
-def add_tso_sources(seed_image, seed_segmentation_map, psf_seeds, segmentation_maps, lightcurves, frametime,
-                    total_frames, exposure_total_frames, frames_per_integration, number_of_ints, resets_bet_ints,
-                    starting_time=0, starting_frame=0, samples_per_frametime=5):
+def add_tso_sources(
+    seed_image,
+    seed_segmentation_map,
+    psf_seeds,
+    segmentation_maps,
+    lightcurves,
+    frametime,
+    total_frames,
+    exposure_total_frames,
+    frames_per_integration,
+    number_of_ints,
+    resets_bet_ints,
+    starting_time=0,
+    starting_frame=0,
+    samples_per_frametime=5,
+):
     """inputs are lists, so that there can be multiple sources, although this
     situation is extremely unlikely
 
@@ -82,7 +94,7 @@ def add_tso_sources(seed_image, seed_segmentation_map, psf_seeds, segmentation_m
     final_seed_segmentation_map : numpy.ndarray
         2D array containing the segmentation map
     """
-    logger = logging.getLogger('mirage.seed_image.tso.add_tso_sources')
+    logger = logging.getLogger("mirage.seed_image.tso.add_tso_sources")
 
     yd, xd = seed_image.shape
     total_exposure_time = exposure_total_frames * frametime
@@ -103,7 +115,9 @@ def add_tso_sources(seed_image, seed_segmentation_map, psf_seeds, segmentation_m
     frame_seed = np.zeros((total_frames, yd, xd))
     final_seed_segmentation_map = np.zeros((yd, xd))
     # Loop over TSO objects
-    for source_number, (psf, seg_map, lightcurve) in enumerate(zip(psf_seeds, segmentation_maps, lightcurves)):
+    for source_number, (psf, seg_map, lightcurve) in enumerate(
+        zip(psf_seeds, segmentation_maps, lightcurves)
+    ):
         # Check that the provided lightcurve is long enough to cover the
         # exposure time of the observation. If not...extend the lightcurve
         # with values of 1.0 until is is long enough. If the lightcurve
@@ -116,38 +130,49 @@ def add_tso_sources(seed_image, seed_segmentation_map, psf_seeds, segmentation_m
         ft_psf = psf * frametime
 
         # Interpolate the lightcurve to prepare for integration
-        interp_lightcurve = interpolate_lightcurve(copy.deepcopy(lightcurve), samples_per_frametime, frametime)
+        interp_lightcurve = interpolate_lightcurve(
+            copy.deepcopy(lightcurve), samples_per_frametime, frametime
+        )
         dx = frametime / (samples_per_frametime - 1)
 
         # Integrate the lightcurve for each frame
-        logger.info('\nIntegrating lightcurve signal for each frame ')
+        logger.info("\nIntegrating lightcurve signal for each frame ")
         for frame_number in np.arange(total_frames) + starting_frame:
             frame_index = frame_number - starting_frame
-            #print("Loop 1, frame number and index: ", frame_number, frame_index)
+            # print("Loop 1, frame number and index: ", frame_number, frame_index)
             min_index = frame_number * (samples_per_frametime - 1)
             indexes = np.arange(min_index, min_index + samples_per_frametime)
 
             # Normalize the integrated signal by the frametime, as that
             # is the integral of a flat line at 1.0 over one frametime
-            relative_signal = romb(interp_lightcurve['fluxes'].value[indexes], dx) / frametime
+            relative_signal = (
+                romb(interp_lightcurve["fluxes"].value[indexes], dx) / frametime
+            )
             frame_psf = ft_psf * relative_signal
             tmpy, tmpx = psf.shape
             frame_seed[frame_index, :, :] += frame_psf
 
         # Add the TSO target to the segmentation map
-        final_seed_segmentation_map = update_segmentation_map(seed_segmentation_map, seg_map.segmap)
+        final_seed_segmentation_map = update_segmentation_map(
+            seed_segmentation_map, seg_map.segmap
+        )
 
     # Translate the frame-by-frame seed into the final, cumulative seed
     # image. Rearrange into integrations, resetting the signal for each
     # new integration.
-    logger.info('Translate the frame-by-frame transit seed into the final, cumulative seed image.')
-    integration_starts = np.arange(number_of_ints) * (frames_per_integration + resets_bet_ints) + starting_frame
+    logger.info(
+        "Translate the frame-by-frame transit seed into the final, cumulative seed image."
+    )
+    integration_starts = (
+        np.arange(number_of_ints) * (frames_per_integration + resets_bet_ints)
+        + starting_frame
+    )
     reset_frames = integration_starts[1:] - 1
 
-    if total_frames-len(reset_frames) > frames_per_integration:
+    if total_frames - len(reset_frames) > frames_per_integration:
         dimension = frames_per_integration
     else:
-        dimension = total_frames-len(reset_frames)
+        dimension = total_frames - len(reset_frames)
     final_seed = np.zeros((number_of_ints, dimension, yd, xd))
 
     for frame in np.arange(total_frames) + starting_frame:
@@ -155,10 +180,16 @@ def add_tso_sources(seed_image, seed_segmentation_map, psf_seeds, segmentation_m
         rel_frame = frame - integration_starts[int_number]
 
         if frame in integration_starts:
-            final_seed[int_number, 0, :, :] = copy.deepcopy(frame_seed[frame-starting_frame, :, :]) + seed_image_per_frame
+            final_seed[int_number, 0, :, :] = (
+                copy.deepcopy(frame_seed[frame - starting_frame, :, :])
+                + seed_image_per_frame
+            )
         elif frame not in reset_frames:
-            final_seed[int_number, rel_frame, :, :] = final_seed[int_number, rel_frame-1, :, :] + \
-                frame_seed[frame-starting_frame, :, :] + seed_image_per_frame
+            final_seed[int_number, rel_frame, :, :] = (
+                final_seed[int_number, rel_frame - 1, :, :]
+                + frame_seed[frame - starting_frame, :, :]
+                + seed_image_per_frame
+            )
 
     return final_seed, final_seed_segmentation_map
 
@@ -190,7 +221,7 @@ def check_lightcurve_time(light_curve, exposure_time, frame_time):
     light_curve : dict
         Potentially modified with added or removed elements
     """
-    logger = logging.getLogger('mirage.seed_image.tso.check_lightcurve_time')
+    logger = logging.getLogger("mirage.seed_image.tso.check_lightcurve_time")
 
     times = copy.deepcopy(light_curve["times"].value)
     fluxes = copy.deepcopy(light_curve["fluxes"].value)
@@ -199,29 +230,37 @@ def check_lightcurve_time(light_curve, exposure_time, frame_time):
     adjusted = False
 
     # Remove elements where time < 0.
-    if np.min(times) < 0.:
-        positive_times = times >= 0.
+    if np.min(times) < 0.0:
+        positive_times = times >= 0.0
         times = times[positive_times]
         fluxes = fluxes[positive_times]
         adjusted = True
 
     # If the times begin at values significantly > 0,
     # then add entries to bring the start back to time = 0
-    if np.min(times) > 0.:
-        logger.info(("Lightcurve time values do not start at zero. Prepending an entry with time=0 "
-                     "and flux = 1."))
-        times = np.insert(times, 0, 0.)
-        fluxes = np.insert(fluxes, 0, 1.)
+    if np.min(times) > 0.0:
+        logger.info(
+            (
+                "Lightcurve time values do not start at zero. Prepending an entry with time=0 "
+                "and flux = 1."
+            )
+        )
+        times = np.insert(times, 0, 0.0)
+        fluxes = np.insert(fluxes, 0, 1.0)
         adjusted = True
 
     # If the ending time is less than the exposure's total
     # observation time, then add entries with flux=1
     if np.max(times) < exposure_time:
-        logger.info(("Lightcurve time values extend only to {} seconds. This is not long enough "
-                     "to cover the entire exposure time of {} seconds. Extending to cover the full "
-                     "exposure time with flux = 1.".format(np.max(times), exposure_time)))
+        logger.info(
+            (
+                "Lightcurve time values extend only to {} seconds. This is not long enough "
+                "to cover the entire exposure time of {} seconds. Extending to cover the full "
+                "exposure time with flux = 1.".format(np.max(times), exposure_time)
+            )
+        )
         times = np.append(times, exposure_time + 5 * frame_time)
-        fluxes = np.append(fluxes, 1.)
+        fluxes = np.append(fluxes, 1.0)
         adjusted = True
 
     if adjusted:
@@ -254,11 +293,18 @@ def interpolate_lightcurve(light_curve, samples_per_frame_time, frame_time):
     light_curve : dict
         Modified dictionary containing the resampled lightcurve
     """
-    time_units = light_curve['times'].unit
-    flux_units = light_curve['fluxes'].unit
-    divisor = samples_per_frame_time - 1.
-    points = np.arange(light_curve['times'][0].value, light_curve['times'][-1].value, frame_time/divisor)
-    light_curve["fluxes"] = np.interp(points, light_curve['times'].value, light_curve['fluxes'].value) * flux_units
+    time_units = light_curve["times"].unit
+    flux_units = light_curve["fluxes"].unit
+    divisor = samples_per_frame_time - 1.0
+    points = np.arange(
+        light_curve["times"][0].value,
+        light_curve["times"][-1].value,
+        frame_time / divisor,
+    )
+    light_curve["fluxes"] = (
+        np.interp(points, light_curve["times"].value, light_curve["fluxes"].value)
+        * flux_units
+    )
     light_curve["times"] = points * time_units
     return light_curve
 
@@ -282,7 +328,7 @@ def read_lightcurve(filename, index_value):
         Dictionary containing lightcurve data for the object in dataset
         number ``index_value``.
     """
-    logger = logging.getLogger('mirage.seed_image.tso.read_lightcurve')
+    logger = logging.getLogger("mirage.seed_image.tso.read_lightcurve")
     file_contents = open_tso(filename)
 
     try:

@@ -30,12 +30,14 @@ from mirage.logging import logging_functions
 from mirage.utils.constants import LOG_CONFIG_FILENAME, STANDARD_LOGFILE_NAME
 
 
-classdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../'))
-log_config_file = os.path.join(classdir, 'logging', LOG_CONFIG_FILENAME)
+classdir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
+log_config_file = os.path.join(classdir, "logging", LOG_CONFIG_FILENAME)
 logging_functions.create_logger(log_config_file, STANDARD_LOGFILE_NAME)
 
 
-def read_file_spectrum(file, wave_units=q.um, flux_units=q.erg/q.s/q.cm**2/q.AA, survey=None):
+def read_file_spectrum(
+    file, wave_units=q.um, flux_units=q.erg / q.s / q.cm**2 / q.AA, survey=None
+):
     """Create a spectrum from an ASCII, XML, or FITS file
 
     Parameters
@@ -55,40 +57,40 @@ def read_file_spectrum(file, wave_units=q.um, flux_units=q.erg/q.s/q.cm**2/q.AA,
         The [wavelength, flux, error] of the file spectrum with units
     """
     # Read the fits data...
-    if file.endswith('.fits'):
+    if file.endswith(".fits"):
 
-        if file.endswith('.fits'):
+        if file.endswith(".fits"):
             data, head = fits.getdata(file, header=True)
 
-        elif survey == 'SDSS':
+        elif survey == "SDSS":
             raw, head = fits.getdata(file, header=True)
-            flux_units = 1E-17 * q.erg / q.s / q.cm ** 2 / q.AA
+            flux_units = 1e-17 * q.erg / q.s / q.cm**2 / q.AA
             wave_units = q.AA
-            log_w = head['COEFF0'] + head['COEFF1'] * np.arange(len(raw.flux))
-            data = [10 ** log_w, raw.flux, raw.ivar]
+            log_w = head["COEFF0"] + head["COEFF1"] * np.arange(len(raw.flux))
+            data = [10**log_w, raw.flux, raw.ivar]
 
         # Check if it is a recarray
         elif isinstance(raw, fits.fitsrec.FITS_rec):
 
             # Check if it's an SDSS spectrum
             raw = fits.getdata(file, ext=ext)
-            data = raw['WAVELENGTH'], raw['FLUX'], raw['ERROR']
+            data = raw["WAVELENGTH"], raw["FLUX"], raw["ERROR"]
 
         # Otherwise just an array
         else:
             print("Sorry, I cannot read the file at", file)
 
     # ...or the ascii data...
-    elif file.endswith('.txt'):
+    elif file.endswith(".txt"):
         data = np.genfromtxt(file, unpack=True)
 
     # ...or the VO Table
-    elif file.endswith('.xml'):
+    elif file.endswith(".xml"):
         vot = vo.parse_single_table(file)
         data = np.array([list(i) for i in vot.array]).T
 
     else:
-        raise IOError('The file needs to be ASCII, XML, or FITS.')
+        raise IOError("The file needs to be ASCII, XML, or FITS.")
 
     # Make sure units are astropy quantities
     if isinstance(wave_units, str):
@@ -98,14 +100,17 @@ def read_file_spectrum(file, wave_units=q.um, flux_units=q.erg/q.s/q.cm**2/q.AA,
 
     # Sanity check for wave_units
     if data[0].min() > 100 and wave_units == q.um:
-        print("WARNING: Your wavelength range ({} - {}) looks like Angstroms. Are you sure it's {}?".format(
-            data[0].min(), data[0].max(), wave_units))
+        print(
+            "WARNING: Your wavelength range ({} - {}) looks like Angstroms. Are you sure it's {}?".format(
+                data[0].min(), data[0].max(), wave_units
+            )
+        )
 
     # Apply units
     wave = data[0] * wave_units
-    flux = data[1] * (flux_units or 1.)
+    flux = data[1] * (flux_units or 1.0)
     if len(data) > 2:
-        unc = data[2] * (flux_units or 1.)
+        unc = data[2] * (flux_units or 1.0)
     else:
         unc = None
 
@@ -127,7 +132,7 @@ def read_filter_throughput(filename):
         values from the file
     """
     tab = ascii.read(filename)
-    return tab['Wavelength_microns'].data, tab['Throughput'].data
+    return tab["Wavelength_microns"].data, tab["Throughput"].data
 
 
 def read_gain_file(filename):
@@ -147,7 +152,7 @@ def read_gain_file(filename):
     header : dict
         Information contained in the header of the file
     """
-    logger = logging.getLogger('mirage.utils.file_io.read_gain_file')
+    logger = logging.getLogger("mirage.utils.file_io.read_gain_file")
 
     try:
         with fits.open(filename) as h:
@@ -185,17 +190,17 @@ def readMTFile(filename):
             are in units of pixels/hour. If false, arcsec/hour
         magsys -- magnitude system of the moving target magnitudes
     """
-    mtlist = ascii.read(filename, comment='#')
+    mtlist = ascii.read(filename, comment="#")
 
     # Convert all relevant columns to floats
     for col in mtlist.colnames:
-        if mtlist[col].dtype in ['int64', 'int']:
-            mtlist[col] = mtlist[col].data * 1.
+        if mtlist[col].dtype in ["int64", "int"]:
+            mtlist[col] = mtlist[col].data * 1.0
 
     # Check to see whether the position is in x,y or ra,dec
     pixelflag = False
     try:
-        if 'position_pixels' in mtlist.meta['comments'][0:4]:
+        if "position_pixels" in mtlist.meta["comments"][0:4]:
             pixelflag = True
     except:
         pass
@@ -204,29 +209,31 @@ def readMTFile(filename):
     # or arcsec/sec.
     pixelvelflag = False
     try:
-        if 'velocity_pixels' in mtlist.meta['comments'][0:4]:
+        if "velocity_pixels" in mtlist.meta["comments"][0:4]:
             pixelvelflag = True
     except:
         pass
 
     # If present, check whether the radius entries (for galaxies)
     # are in arcsec or pixels. If in arcsec, change to pixels
-    if 'radius' in mtlist.colnames:
-        if 'radius_pixels' not in mtlist.meta['comments'][0:4]:
-            mtlist['radius'] /= self.siaf.XSciScale
+    if "radius" in mtlist.colnames:
+        if "radius_pixels" not in mtlist.meta["comments"][0:4]:
+            mtlist["radius"] /= self.siaf.XSciScale
 
     # If galaxies are present, change position angle from degrees
     # to radians
-    if 'pos_angle' in mtlist.colnames:
-        mtlist['pos_angle'] = mtlist['pos_angle'] * np.pi / 180.
+    if "pos_angle" in mtlist.colnames:
+        mtlist["pos_angle"] = mtlist["pos_angle"] * np.pi / 180.0
 
     # Check to see if magnitude system is specified in comments
     # If not, assume AB mags
-    msys = 'abmag'
+    msys = "abmag"
 
-    condition = ('stmag' in mtlist.meta['comments'][0:4]) | ('vegamag' in mtlist.meta['comments'][0:4])
+    condition = ("stmag" in mtlist.meta["comments"][0:4]) | (
+        "vegamag" in mtlist.meta["comments"][0:4]
+    )
     if condition:
-        msys = [l for l in mtlist.meta['comments'][0:4] if 'mag' in l][0]
+        msys = [l for l in mtlist.meta["comments"][0:4] if "mag" in l][0]
         msys = msys.lower()
 
     return mtlist, pixelflag, pixelvelflag, msys.lower()

@@ -37,10 +37,10 @@ class Timer:
 
         return elapsed_time
 
-    def sum(self, key_str=''):
+    def sum(self, key_str=""):
         """Sum the times for all dictionary entries where the key
         contains key_str"""
-        total_time = 0.
+        total_time = 0.0
 
         for key in self.timers:
             if key_str in key:

@@ -46,144 +46,165 @@ import numpy as np
 from mirage.seed_image.ephemeris_tools import to_timestamp
 
 
-def create_mt_pos_entry(time_string, movtarg_x, movtarg_y, refpix_ra, refpix_dec,
-                        movtarg_ra, movtarg_dec, mt_x_helio, mt_y_helio, mt_z_helio, jwst_x_helio,
-                        jwst_y_helio, jwst_z_helio, mt_x_jwst, mt_y_jwst, mt_z_jwst, mt_jwst_distance,
-                        mt_sun_distance, phase_angle):
-        """Create a single entry for the MOVING_TARGET_POSITION table. The assumption here
-        is that inputs will be coming from the GROUP table, which is why the time-based
-        columns are so screwy.
+def create_mt_pos_entry(
+    time_string,
+    movtarg_x,
+    movtarg_y,
+    refpix_ra,
+    refpix_dec,
+    movtarg_ra,
+    movtarg_dec,
+    mt_x_helio,
+    mt_y_helio,
+    mt_z_helio,
+    jwst_x_helio,
+    jwst_y_helio,
+    jwst_z_helio,
+    mt_x_jwst,
+    mt_y_jwst,
+    mt_z_jwst,
+    mt_jwst_distance,
+    mt_sun_distance,
+    phase_angle,
+):
+    """Create a single entry for the MOVING_TARGET_POSITION table. The assumption here
+    is that inputs will be coming from the GROUP table, which is why the time-based
+    columns are so screwy.
 
-        Parameters
-        ----------
-        time_string : str
-            Time of the entry in isot format
-            (e.g. '2022-12-18T00:11:41.996')
+    Parameters
+    ----------
+    time_string : str
+        Time of the entry in isot format
+        (e.g. '2022-12-18T00:11:41.996')
 
-        movtarg_x : float
-            The X location of the moving target in the aperture
+    movtarg_x : float
+        The X location of the moving target in the aperture
 
-        movtarg_y : float
-            The Y location of the moving target in the aperture
+    movtarg_y : float
+        The Y location of the moving target in the aperture
 
-        refpix_ra : float
-            RA of the reference location of the aperture
+    refpix_ra : float
+        RA of the reference location of the aperture
 
-        refpix_dec : float
-            Dec of the reference location of the aperture
+    refpix_dec : float
+        Dec of the reference location of the aperture
 
-        movtarg_ra : float
-            RA of the moving target
+    movtarg_ra : float
+        RA of the moving target
 
-        movtarg_dec : float
-            Dec of the moving target
+    movtarg_dec : float
+        Dec of the moving target
 
-        mt_x_helio : float
-            X-coord of moving target heliocentric distance
+    mt_x_helio : float
+        X-coord of moving target heliocentric distance
 
-        mt_y_helio : float
-            Y-coord of moving target heliocentric distance
+    mt_y_helio : float
+        Y-coord of moving target heliocentric distance
 
-        mt_z_helio : float
-            Z-coord of moving target heliocentric distance
+    mt_z_helio : float
+        Z-coord of moving target heliocentric distance
 
-        jwst_x_helio : float
-            X-coord of JWST heliocentric distance
+    jwst_x_helio : float
+        X-coord of JWST heliocentric distance
 
-        jwst_y_helio : float
-            Y-coord of JWST heliocentric distance
+    jwst_y_helio : float
+        Y-coord of JWST heliocentric distance
 
-        jwst_z_helio : float
-            Z-coord of JWST heliocentric distance
+    jwst_z_helio : float
+        Z-coord of JWST heliocentric distance
 
-        mt_x_jwst : float
-            X-coord of moving target-JWST distance
+    mt_x_jwst : float
+        X-coord of moving target-JWST distance
 
-        mt_y_jwst : float
-            Y-coord of moving target-JWST distance
+    mt_y_jwst : float
+        Y-coord of moving target-JWST distance
 
-        mt_z_jwst : float
-            Z-coord of moving target-JWST distance
+    mt_z_jwst : float
+        Z-coord of moving target-JWST distance
 
-        mt_jwst_distance : float
-            Moving target-JWST distance
+    mt_jwst_distance : float
+        Moving target-JWST distance
 
-        mt_sun_distance : float
-            Moving target-Sun distance
+    mt_sun_distance : float
+        Moving target-Sun distance
 
-        phase_angle : float
-            Phase angle
+    phase_angle : float
+        Phase angle
 
-        Returns
-        -------
-        group : nump.ndarray
-            Input values organized into format needed for group entry in
-            JWST formatted file
-        """
-        mjd_day = Time(time_string).mjd
+    Returns
+    -------
+    group : nump.ndarray
+        Input values organized into format needed for group entry in
+        JWST formatted file
+    """
+    mjd_day = Time(time_string).mjd
 
-        position = np.ndarray(
-            (1, ),
-            dtype=[
-                ('time', '>f8'),
-                ('mt_sci_x', '>i4'),
-                ('mt_sci_y', '>i4'),
-                ('ref_pixel_RA', '>f8'),
-                ('ref_pixel_Dec', '>f8'),
-                ('mt_apparent_RA', '>f8'),
-                ('mt_apparent_Dec', '>f8'),
-                ('mt_apparent_x_helio', '>f8'),
-                ('mt_apparent_y_helio', '>f8'),
-                ('mt_apparent_z_helio', '>f8'),
-                ('jwst_x_helio', '>f8'),
-                ('jwst_y_helio', '>f8'),
-                ('jwst_z_helio', '>f8'),
-                ('mt_apparent_x_jwst', '>f8'),
-                ('mt_apparent_y_jwst', '>f8'),
-                ('mt_apparent_z_jwst', '>f8'),
-                ('mt_apparent_jwst_distance', '>f8'),
-                ('mt_apparent_sun_distance', '>f8'),
-                ('apparent_phase_angle', '>f8'),
-                ('apparent_light_travel_time', '>f8'),
-                ('mt_true_x_helio', '>f8'),
-                ('mt_true_y_helio', '>f8'),
-                ('mt_true_z_helio', '>f8'),
-                ('mt_true_x_jwst', '>f8'),
-                ('mt_true_y_jwst', '>f8'),
-                ('mt_true_z_jwst', '>f8')
-            ]
-        )
-        position[0]['time'] = mjd_day
-        position[0]['mt_sci_x'] = movtarg_x
-        position[0]['mt_sci_y'] = movtarg_y
-        position[0]['ref_pixel_RA'] = refpix_ra
-        position[0]['ref_pixel_Dec'] = refpix_dec
-        position[0]['mt_apparent_RA'] = movtarg_ra
-        position[0]['mt_apparent_Dec'] = movtarg_dec
-        position[0]['mt_apparent_x_helio'] = mt_x_helio
-        position[0]['mt_apparent_y_helio'] = mt_y_helio
-        position[0]['mt_apparent_z_helio'] = mt_z_helio
-        position[0]['jwst_x_helio'] = jwst_x_helio
-        position[0]['jwst_y_helio'] = jwst_y_helio
-        position[0]['jwst_z_helio'] = jwst_z_helio
-        position[0]['mt_apparent_x_jwst'] = mt_x_jwst
-        position[0]['mt_apparent_y_jwst'] = mt_y_jwst
-        position[0]['mt_apparent_z_jwst'] = mt_z_jwst
-        position[0]['mt_apparent_jwst_distance'] = mt_jwst_distance
-        position[0]['mt_apparent_sun_distance'] = mt_sun_distance
-        position[0]['apparent_phase_angle'] = phase_angle
-        position[0]['apparent_light_travel_time'] = np.sqrt(mt_x_jwst**2 + mt_y_jwst**2 + mt_z_jwst**2) / 3.e8
-        position[0]['mt_true_x_helio'] = mt_x_helio
-        position[0]['mt_true_y_helio'] = mt_y_helio
-        position[0]['mt_true_z_helio'] = mt_z_helio
-        position[0]['mt_true_x_jwst'] = mt_x_jwst
-        position[0]['mt_true_y_jwst'] = mt_y_jwst
-        position[0]['mt_true_z_jwst'] = mt_z_jwst
+    position = np.ndarray(
+        (1,),
+        dtype=[
+            ("time", ">f8"),
+            ("mt_sci_x", ">i4"),
+            ("mt_sci_y", ">i4"),
+            ("ref_pixel_RA", ">f8"),
+            ("ref_pixel_Dec", ">f8"),
+            ("mt_apparent_RA", ">f8"),
+            ("mt_apparent_Dec", ">f8"),
+            ("mt_apparent_x_helio", ">f8"),
+            ("mt_apparent_y_helio", ">f8"),
+            ("mt_apparent_z_helio", ">f8"),
+            ("jwst_x_helio", ">f8"),
+            ("jwst_y_helio", ">f8"),
+            ("jwst_z_helio", ">f8"),
+            ("mt_apparent_x_jwst", ">f8"),
+            ("mt_apparent_y_jwst", ">f8"),
+            ("mt_apparent_z_jwst", ">f8"),
+            ("mt_apparent_jwst_distance", ">f8"),
+            ("mt_apparent_sun_distance", ">f8"),
+            ("apparent_phase_angle", ">f8"),
+            ("apparent_light_travel_time", ">f8"),
+            ("mt_true_x_helio", ">f8"),
+            ("mt_true_y_helio", ">f8"),
+            ("mt_true_z_helio", ">f8"),
+            ("mt_true_x_jwst", ">f8"),
+            ("mt_true_y_jwst", ">f8"),
+            ("mt_true_z_jwst", ">f8"),
+        ],
+    )
+    position[0]["time"] = mjd_day
+    position[0]["mt_sci_x"] = movtarg_x
+    position[0]["mt_sci_y"] = movtarg_y
+    position[0]["ref_pixel_RA"] = refpix_ra
+    position[0]["ref_pixel_Dec"] = refpix_dec
+    position[0]["mt_apparent_RA"] = movtarg_ra
+    position[0]["mt_apparent_Dec"] = movtarg_dec
+    position[0]["mt_apparent_x_helio"] = mt_x_helio
+    position[0]["mt_apparent_y_helio"] = mt_y_helio
+    position[0]["mt_apparent_z_helio"] = mt_z_helio
+    position[0]["jwst_x_helio"] = jwst_x_helio
+    position[0]["jwst_y_helio"] = jwst_y_helio
+    position[0]["jwst_z_helio"] = jwst_z_helio
+    position[0]["mt_apparent_x_jwst"] = mt_x_jwst
+    position[0]["mt_apparent_y_jwst"] = mt_y_jwst
+    position[0]["mt_apparent_z_jwst"] = mt_z_jwst
+    position[0]["mt_apparent_jwst_distance"] = mt_jwst_distance
+    position[0]["mt_apparent_sun_distance"] = mt_sun_distance
+    position[0]["apparent_phase_angle"] = phase_angle
+    position[0]["apparent_light_travel_time"] = (
+        np.sqrt(mt_x_jwst**2 + mt_y_jwst**2 + mt_z_jwst**2) / 3.0e8
+    )
+    position[0]["mt_true_x_helio"] = mt_x_helio
+    position[0]["mt_true_y_helio"] = mt_y_helio
+    position[0]["mt_true_z_helio"] = mt_z_helio
+    position[0]["mt_true_x_jwst"] = mt_x_jwst
+    position[0]["mt_true_y_jwst"] = mt_y_jwst
+    position[0]["mt_true_z_jwst"] = mt_z_jwst
 
-        return position
+    return position
 
 
-def populate_moving_target_table(grouptable, ephem_interp_func, movtarg_x, movtarg_y, refpix_ra, refpix_dec):
+def populate_moving_target_table(
+    grouptable, ephem_interp_func, movtarg_x, movtarg_y, refpix_ra, refpix_dec
+):
     """Given an instance of the Group table from a datamodel, along with
     an interpolation function for the target's RA and Dec, construct a
     basic moving_target_position table that can be added to the
@@ -225,9 +246,27 @@ def populate_moving_target_table(grouptable, ephem_interp_func, movtarg_x, movta
     ra_func, dec_func = ephem_interp_func
 
     # Create the table with a first row populated by garbage
-    mt_position = create_mt_pos_entry('2000-01-01', 1024, 1024, 0., 0., 0., 0.,
-                                      999., 999., 999., 888., 888., 888.,
-                                      777., 777., 777., 1234., 1234., 90.)
+    mt_position = create_mt_pos_entry(
+        "2000-01-01",
+        1024,
+        1024,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        999.0,
+        999.0,
+        999.0,
+        888.0,
+        888.0,
+        888.0,
+        777.0,
+        777.0,
+        777.0,
+        1234.0,
+        1234.0,
+        90.0,
+    )
 
     # Dummy data to use for the time being
     mt_y_helio = 5.30e8
@@ -250,10 +289,27 @@ def populate_moving_target_table(grouptable, ephem_interp_func, movtarg_x, movta
         interp_ra = ra_func(line_day_calstamp)
         interp_dec = dec_func(line_day_calstamp)
 
-        entry = create_mt_pos_entry(line[0][5], movtarg_x, movtarg_y, refpix_ra, refpix_dec,
-                        interp_ra, interp_dec, mt_x_helio, mt_y_helio, mt_z_helio, jwst_x_helio,
-                        jwst_y_helio, jwst_z_helio, mt_x_jwst, mt_y_jwst, mt_z_jwst, mt_jwst_distance,
-                        mt_sun_distance, phase_angle)
+        entry = create_mt_pos_entry(
+            line[0][5],
+            movtarg_x,
+            movtarg_y,
+            refpix_ra,
+            refpix_dec,
+            interp_ra,
+            interp_dec,
+            mt_x_helio,
+            mt_y_helio,
+            mt_z_helio,
+            jwst_x_helio,
+            jwst_y_helio,
+            jwst_z_helio,
+            mt_x_jwst,
+            mt_y_jwst,
+            mt_z_jwst,
+            mt_jwst_distance,
+            mt_sun_distance,
+            phase_angle,
+        )
 
         mt_position = np.vstack([mt_position, entry])
 
@@ -277,14 +333,16 @@ def obstime_to_datetime(obstime):
     time_datetime : datetime.datetime
         Datetime associated with ```obstime```
     """
-    mid_time_astropy = Time(obstime, format='mjd')
+    mid_time_astropy = Time(obstime, format="mjd")
     isot = mid_time_astropy.isot
-    date_val, time_val = isot.split('T')
-    time_val_parts = time_val.split(':')
-    fullsec = float(time_val.split(':')[2])
-    microsec = '{}'.format(int((fullsec - int(fullsec)) * 1e6))
-    new_time_val = '{}:{}:{}:{}'.format(time_val_parts[0], time_val_parts[1], int(fullsec), microsec)
-    time_datetime = datetime.strptime("{} {}".format(date_val, new_time_val), "%Y-%m-%d %H:%M:%S:%f")
+    date_val, time_val = isot.split("T")
+    time_val_parts = time_val.split(":")
+    fullsec = float(time_val.split(":")[2])
+    microsec = "{}".format(int((fullsec - int(fullsec)) * 1e6))
+    new_time_val = "{}:{}:{}:{}".format(
+        time_val_parts[0], time_val_parts[1], int(fullsec), microsec
+    )
+    time_datetime = datetime.strptime(
+        "{} {}".format(date_val, new_time_val), "%Y-%m-%d %H:%M:%S:%f"
+    )
     return time_datetime
-
-

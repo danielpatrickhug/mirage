@@ -19,15 +19,23 @@ from mirage.logging import logging_functions
 from mirage.utils.constants import LOG_CONFIG_FILENAME, STANDARD_LOGFILE_NAME
 
 
-classdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../'))
-log_config_file = os.path.join(classdir, 'logging', LOG_CONFIG_FILENAME)
+classdir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
+log_config_file = os.path.join(classdir, "logging", LOG_CONFIG_FILENAME)
 logging_functions.create_logger(log_config_file, STANDARD_LOGFILE_NAME)
 
 
-class Extraction():
-    def __init__(self, mosaicfile=None, data_extension_number=0, wcs_extension_number=0,
-                 center_ra=None, center_dec=None, outfile=None, dimensions=(0, 0),
-                 jwst_pixel_scale=None):
+class Extraction:
+    def __init__(
+        self,
+        mosaicfile=None,
+        data_extension_number=0,
+        wcs_extension_number=0,
+        center_ra=None,
+        center_dec=None,
+        outfile=None,
+        dimensions=(0, 0),
+        jwst_pixel_scale=None,
+    ):
         """
         Parameters
         ----------
@@ -77,26 +85,30 @@ class Extraction():
         # rotated during later resampling, in order to avoid
         # having the rotated image corners fall outside the
         # extracted image. This is a multiplicative value.
-        self.buffer = np.sqrt(2.)
-
+        self.buffer = np.sqrt(2.0)
 
     def extract(self):
-        """MAIN FUNCTION: extract a subimage from the input mosaic
-        """
+        """MAIN FUNCTION: extract a subimage from the input mosaic"""
         # Get WCS info from mosaic file
         mosaic = fits.open(self.mosaicfile)
         mosaic_wcs = wcs.WCS(mosaic[self.wcs_extension_number].header)
         mosaic_shape = mosaic[self.data_extension_number].data.shape
         try:
-            self.instrument = mosaic[0].header['INSTRUME']
+            self.instrument = mosaic[0].header["INSTRUME"]
         except KeyError:
-            self.instrument = 'NA'
+            self.instrument = "NA"
 
         # Assume the input mosaic has been drizzled, so remove
         # any SIP coefficients that may be present
-        self.logger.info('\n\n******************************************************************')
-        self.logger.info('Assuming input files have been drizzled. Removing SIP coefficients')
-        self.logger.info('******************************************************************\n\n')
+        self.logger.info(
+            "\n\n******************************************************************"
+        )
+        self.logger.info(
+            "Assuming input files have been drizzled. Removing SIP coefficients"
+        )
+        self.logger.info(
+            "******************************************************************\n\n"
+        )
         mosaic_wcs.sip = None
 
         radec = np.array([[self.center_ra, self.center_dec]])
@@ -110,13 +122,13 @@ class Extraction():
         self.mosaic_x_type, self.mosaic_y_type = mosaic_wcs.wcs.ctype
         self.cd11, self.cd12 = mosaic_wcs.wcs.cd[0]
         self.cd21, self.cd22 = mosaic_wcs.wcs.cd[1]
-        self.mosaic_scale_x = np.abs(self.cd11) * 3600.  # arcsec/pix
-        self.mosaic_scale_y = np.abs(self.cd22) * 3600.  # arcsec/pix
-        self.mosaic_roll = np.arccos(self.cd11 / (self.mosaic_scale_x / 3600.))
+        self.mosaic_scale_x = np.abs(self.cd11) * 3600.0  # arcsec/pix
+        self.mosaic_scale_y = np.abs(self.cd22) * 3600.0  # arcsec/pix
+        self.mosaic_roll = np.arccos(self.cd11 / (self.mosaic_scale_x / 3600.0))
 
         # Define size of region to extract
         # self.dimensions are in units of jwst pixwls
-        #outscale_x = self.nrc_scale[self.channel.lower()]
+        # outscale_x = self.nrc_scale[self.channel.lower()]
         xlen, ylen = self.dimensions
 
         # Expand by the buffer
@@ -155,11 +167,15 @@ class Extraction():
         if maxx > mosaic_shape[1]:
             maxx = mosaic_shape[1]
 
-        self.logger.info("Coords of center of cropped area: {}, {}".format(mosaic_center_x, mosaic_center_y))
+        self.logger.info(
+            "Coords of center of cropped area: {}, {}".format(
+                mosaic_center_x, mosaic_center_y
+            )
+        )
         self.logger.info("X-min, X-max coords: {}, {}".format(minx, maxx))
         self.logger.info("Y-min, Y-max coords: {}, {}".format(miny, maxy))
 
-        crop = mosaic[self.data_extension_number].data[miny: maxy, minx: maxx]
+        crop = mosaic[self.data_extension_number].data[miny:maxy, minx:maxx]
 
         # Place into a data model to prepare for blotting
         self.cropped = self.populate_datamodel(crop)
@@ -182,24 +198,24 @@ class Extraction():
 
         # now we need to update the WCS of the mosaic piece
         cropped = datamodels.ImageModel()
-        cropped.meta.wcsinfo.cdelt1 = self.mosaic_scale_x / 3600.
-        cropped.meta.wcsinfo.cdelt2 = self.mosaic_scale_y / 3600.
+        cropped.meta.wcsinfo.cdelt1 = self.mosaic_scale_x / 3600.0
+        cropped.meta.wcsinfo.cdelt2 = self.mosaic_scale_y / 3600.0
         cropped.meta.wcsinfo.crpix1 = self.crpix1
         cropped.meta.wcsinfo.crpix2 = self.crpix2
         cropped.meta.wcsinfo.crval1 = self.center_ra
         cropped.meta.wcsinfo.crval2 = self.center_dec
         cropped.meta.wcsinfo.ctype1 = self.mosaic_x_type
         cropped.meta.wcsinfo.ctype2 = self.mosaic_y_type
-        cropped.meta.wcsinfo.cunit1 = 'deg'
-        cropped.meta.wcsinfo.cunit2 = 'deg'
+        cropped.meta.wcsinfo.cunit1 = "deg"
+        cropped.meta.wcsinfo.cunit2 = "deg"
         cropped.meta.wcsinfo.ra_ref = self.center_ra
         cropped.meta.wcsinfo.dec_ref = self.center_dec
-        cropped.meta.wcsinfo.roll_ref = self.mosaic_roll * 180./np.pi
+        cropped.meta.wcsinfo.roll_ref = self.mosaic_roll * 180.0 / np.pi
         cropped.meta.wcsinfo.wcsaxes = 2
-        cropped.meta.wcsinfo.pc1_1 = self.cd11 / (self.mosaic_scale_x / 3600.)
-        cropped.meta.wcsinfo.pc1_2 = self.cd12 / (self.mosaic_scale_x / 3600.)
-        cropped.meta.wcsinfo.pc2_1 = self.cd21 / (self.mosaic_scale_y / 3600.)
-        cropped.meta.wcsinfo.pc2_2 = self.cd22 / (self.mosaic_scale_y / 3600.)
+        cropped.meta.wcsinfo.pc1_1 = self.cd11 / (self.mosaic_scale_x / 3600.0)
+        cropped.meta.wcsinfo.pc1_2 = self.cd12 / (self.mosaic_scale_x / 3600.0)
+        cropped.meta.wcsinfo.pc2_1 = self.cd21 / (self.mosaic_scale_y / 3600.0)
+        cropped.meta.wcsinfo.pc2_2 = self.cd22 / (self.mosaic_scale_y / 3600.0)
 
         cropped.data = array
         return cropped
@@ -219,50 +235,75 @@ class Extraction():
         h1 = fits.ImageHDU()
         h1.data = array
 
-        h1.header['INSTRUME'] = self.instrument
-        h1.header['CDELT1'] = self.mosaic_scale_x / 3600.
-        h1.header['CDELT2'] = self.mosaic_scale_y / 3600.
-        h1.header['CRPIX1'] = self.crpix1
-        h1.header['CRPIX2'] = self.crpix2
-        h1.header['CRVAL1'] = self.center_ra
-        h1.header['CRVAL2'] = self.center_dec
-        h1.header['CTYPE1'] = self.mosaic_x_type
-        h1.header['CTYPE2'] = self.mosaic_y_type
-        h1.header['CUNIT1'] = 'deg'
-        h1.header['CUNIT2'] = 'deg'
-        h1.header['RA_REF'] = self.center_ra
-        h1.header['DEC_REF'] = self.center_dec
-        h1.header['ROLL_REF'] = self.mosaic_roll * 180./np.pi
-        h1.header['WCSAXES'] = 2
-        h1.header['EXTNAME'] = 'SCI    '
-        h1.header['EXTVER'] = 1
-        h1.header['PC1_1'] = self.cd11 / (self.mosaic_scale_x / 3600.)
-        h1.header['PC1_2'] = self.cd12 / (self.mosaic_scale_x / 3600.)
-        h1.header['PC2_1'] = self.cd21 / (self.mosaic_scale_y / 3600.)
-        h1.header['PC2_2'] = self.cd22 / (self.mosaic_scale_y / 3600.)
+        h1.header["INSTRUME"] = self.instrument
+        h1.header["CDELT1"] = self.mosaic_scale_x / 3600.0
+        h1.header["CDELT2"] = self.mosaic_scale_y / 3600.0
+        h1.header["CRPIX1"] = self.crpix1
+        h1.header["CRPIX2"] = self.crpix2
+        h1.header["CRVAL1"] = self.center_ra
+        h1.header["CRVAL2"] = self.center_dec
+        h1.header["CTYPE1"] = self.mosaic_x_type
+        h1.header["CTYPE2"] = self.mosaic_y_type
+        h1.header["CUNIT1"] = "deg"
+        h1.header["CUNIT2"] = "deg"
+        h1.header["RA_REF"] = self.center_ra
+        h1.header["DEC_REF"] = self.center_dec
+        h1.header["ROLL_REF"] = self.mosaic_roll * 180.0 / np.pi
+        h1.header["WCSAXES"] = 2
+        h1.header["EXTNAME"] = "SCI    "
+        h1.header["EXTVER"] = 1
+        h1.header["PC1_1"] = self.cd11 / (self.mosaic_scale_x / 3600.0)
+        h1.header["PC1_2"] = self.cd12 / (self.mosaic_scale_x / 3600.0)
+        h1.header["PC2_1"] = self.cd21 / (self.mosaic_scale_y / 3600.0)
+        h1.header["PC2_2"] = self.cd22 / (self.mosaic_scale_y / 3600.0)
 
         hlist = fits.HDUList([h0, h1])
         hlist.writeto(ofile, overwrite=True)
 
     def add_options(self, parser=None, usage=None):
         if parser is None:
-            parser = argparse.ArgumentParser(usage=usage, description='Extract SCA-sized area from moasic')
-        parser.add_argument("--mosaicfile", help="Filename of fits file containing mosaic.")
-        parser.add_argument("--data_extension_number", help="Extension number in mosaic file where data are located. Default=0", default=0)
-        parser.add_argument("--center_ra", help="RA at the center of the extracted area", type=np.float)
-        parser.add_argument("--center_dec", help="Dec at the center of the extracted area", type=np.float)
-        parser.add_argument("--outfile", help="Name of output fits file containing extracted image", default=None)
-        parser.add_argument("--dimensions", help="Tuple of (x pixels, y pixels) of the image to crop. Excludes buffer for WFSS.")
-        parser.add_argument("--jwst_pixel_scale", help=("Pixel scale (arcsec/pix) of the detector/aperture "
-                                                        "for JWST aperture data will be applied to."))
+            parser = argparse.ArgumentParser(
+                usage=usage, description="Extract SCA-sized area from moasic"
+            )
+        parser.add_argument(
+            "--mosaicfile", help="Filename of fits file containing mosaic."
+        )
+        parser.add_argument(
+            "--data_extension_number",
+            help="Extension number in mosaic file where data are located. Default=0",
+            default=0,
+        )
+        parser.add_argument(
+            "--center_ra", help="RA at the center of the extracted area", type=np.float
+        )
+        parser.add_argument(
+            "--center_dec",
+            help="Dec at the center of the extracted area",
+            type=np.float,
+        )
+        parser.add_argument(
+            "--outfile",
+            help="Name of output fits file containing extracted image",
+            default=None,
+        )
+        parser.add_argument(
+            "--dimensions",
+            help="Tuple of (x pixels, y pixels) of the image to crop. Excludes buffer for WFSS.",
+        )
+        parser.add_argument(
+            "--jwst_pixel_scale",
+            help=(
+                "Pixel scale (arcsec/pix) of the detector/aperture "
+                "for JWST aperture data will be applied to."
+            ),
+        )
         return parser
 
 
-if __name__ == '__main__':
-    usagestring = 'USAGE: crop_mosaic.py filename.fits 23.43 -21.2'
+if __name__ == "__main__":
+    usagestring = "USAGE: crop_mosaic.py filename.fits 23.43 -21.2"
 
     ex = Extraction()
-    parser = ex.add_options(usage = usagestring)
+    parser = ex.add_options(usage=usagestring)
     args = parser.parse_args(namespace=ex)
     ex.extract()
-

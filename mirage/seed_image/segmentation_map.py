@@ -1,15 +1,15 @@
 #! /usr/bin/env python
 
-'''
+"""
 Segmentation map creation. Developed in conjunction with
 the seed image generator code for catalogs
 catalog_seed_image.py
-'''
+"""
 
 import numpy as np
 
 
-class SegMap():
+class SegMap:
     def __init__(self):
         self.xdim = 2048
         self.ydim = 2048
@@ -22,7 +22,9 @@ class SegMap():
         elif self.zdim is not None and self.intdim is None:
             self.segmap = np.zeros((self.zdim, self.ydim, self.xdim), dtype=np.int64)
         elif self.zdim is not None and self.intdim is not None:
-            self.segmap = np.zeros((self.intdim, self.zdim, self.ydim, self.xdim), dtype=np.int64)
+            self.segmap = np.zeros(
+                (self.intdim, self.zdim, self.ydim, self.xdim), dtype=np.int64
+            )
 
     def add_object_basic(self, ystart, yend, xstart, xend, number):
         # Add an object to the segmentation map
@@ -42,7 +44,7 @@ class SegMap():
         # In this case, only flag pixels whose
         # signal is higher than the given cutoff
         yd, xd = image.shape
-        stamp = self.segmap[ystart:ystart+yd, xstart:xstart+xd]
+        stamp = self.segmap[ystart : ystart + yd, xstart : xstart + xd]
         maxsig = np.max(image)
         cutoff = maxsig * perc
         flag = image >= cutoff
@@ -74,6 +76,6 @@ class SegMap():
             the segmentation map as part of this object
         """
         yd, xd = image.shape
-        stamp = self.segmap[ystart:ystart+yd, xstart:xstart+xd]
+        stamp = self.segmap[ystart : ystart + yd, xstart : xstart + xd]
         flag = image >= threshold
         stamp[flag] = number

@@ -43,12 +43,22 @@ def gaussian_psf(fwhm, xdim, ydim):
     dev = fwhm / 2.35
 
     # Create model
-    model = Gaussian2D(amplitude=1., x_mean=xmean, y_mean=ymean, x_stddev=dev, y_stddev=dev)
+    model = Gaussian2D(
+        amplitude=1.0, x_mean=xmean, y_mean=ymean, x_stddev=dev, y_stddev=dev
+    )
 
     # Evalulate model
-    x_grid, y_grid = np.mgrid[0: xdim, 0: ydim]
-    kernel = model.evaluate(x=x_grid, y=y_grid, amplitude=1., x_mean=xmean,
-                            y_mean=ymean, x_stddev=dev, y_stddev=dev, theta=0.)
+    x_grid, y_grid = np.mgrid[0:xdim, 0:ydim]
+    kernel = model.evaluate(
+        x=x_grid,
+        y=y_grid,
+        amplitude=1.0,
+        x_mean=xmean,
+        y_mean=ymean,
+        x_stddev=dev,
+        y_stddev=dev,
+        theta=0.0,
+    )
     return kernel
 
 
@@ -95,21 +105,27 @@ def get_IRAC_PSF(meta):
     hdu.data : numpy.ndarray
         2D array containing the IRAC PSF
     """
-    if isinstance(meta['channel'], int):
-        if meta['channel'] >= 1 and meta['channel'] <= 4:
-            hdu = load_irac_psf(channel=meta['channel'])
+    if isinstance(meta["channel"], int):
+        if meta["channel"] >= 1 and meta["channel"] <= 4:
+            hdu = load_irac_psf(channel=meta["channel"])
         else:
-            raise ValueError("ERROR: IRAC Channel number must be an integer from 1 to 4.")
+            raise ValueError(
+                "ERROR: IRAC Channel number must be an integer from 1 to 4."
+            )
     else:
         raise ValueError("ERROR: IRAC Channel number must be an integer from 1 to 4.")
 
-    pixscale = hdu.header['SECPIX']
-    mosaic_pix_scale1 = meta['pix_scale1']
+    pixscale = hdu.header["SECPIX"]
+    mosaic_pix_scale1 = meta["pix_scale1"]
     if not np.isclose(mosaic_pix_scale1, pixscale, rtol=0.05):
-        raise ValueError(("Reported pixel scale in the mosaic does not match that in "
-                          "the IRAC PSF from photutils. If the pixel scale of the mosaic "
-                          "is really not {}, please provide your own fits file containing "
-                          "a representative PSF at the desired pixel scale.".format(pixscale)))
+        raise ValueError(
+            (
+                "Reported pixel scale in the mosaic does not match that in "
+                "the IRAC PSF from photutils. If the pixel scale of the mosaic "
+                "is really not {}, please provide your own fits file containing "
+                "a representative PSF at the desired pixel scale.".format(pixscale)
+            )
+        )
 
     return hdu.data
 
@@ -138,25 +154,25 @@ def get_JWST_pixel_scale(meta, aperture=None):
         Pixel scale (arcsec/pixel) in y-direction on detector
     """
     # Create SIAF instance
-    siaf = get_instance(meta['instrument'])
+    siaf = get_instance(meta["instrument"])
 
     # If needed, get the name to append to the detector to create
     # the full aperture
     # name
     if aperture is None:
-        if meta['instrument'].lower() == 'nircam':
-            aperture = 'FULL'
-        elif meta['instrument'].lower() == 'niriss':
-            aperture = 'CEN'
-        elif meta['instrument'].lower() == 'fgs':
-            aperture = 'FULL'
+        if meta["instrument"].lower() == "nircam":
+            aperture = "FULL"
+        elif meta["instrument"].lower() == "niriss":
+            aperture = "CEN"
+        elif meta["instrument"].lower() == "fgs":
+            aperture = "FULL"
 
         # In SIAF, the FGS detectors are FGS1,2 rather than GUIDER1,2
-        detector = meta['detector'].upper()
-        if 'GUIDER' in detector:
-            detector = detector.replace('GUIDER', 'FGS')
+        detector = meta["detector"].upper()
+        if "GUIDER" in detector:
+            detector = detector.replace("GUIDER", "FGS")
 
-        aperture = '{}_{}'.format(detector, aperture)
+        aperture = "{}_{}".format(detector, aperture)
 
     # Get the aperture-specific SIAF info
     siaf_aper = siaf[aperture]
@@ -183,22 +199,38 @@ def get_JWST_PSF(meta):
     # library is saved at
     nominal_pix_scale_x, nominal_pix_scale_y = get_JWST_pixel_scale(meta)
 
-    mosaic_pix_scale1 = meta['pix_scale1']
+    mosaic_pix_scale1 = meta["pix_scale1"]
     if not np.isclose(mosaic_pix_scale1, nominal_pix_scale_x, rtol=0.05):
-        raise ValueError(("Reported pixel scale in the mosaic does not match the nominal "
-                          "pixel scale for {} {}/{}. If the pixel scale of the mosaic "
-                          "is really not {}, please provide your own fits file containing "
-                          "a representative PSF at the desired pixel scale.".format(meta['instrument'],
-                                                                                    meta['filter'],
-                                                                                    meta['pupil'],
-                                                                                    nominal_pix_scale_x)))
+        raise ValueError(
+            (
+                "Reported pixel scale in the mosaic does not match the nominal "
+                "pixel scale for {} {}/{}. If the pixel scale of the mosaic "
+                "is really not {}, please provide your own fits file containing "
+                "a representative PSF at the desired pixel scale.".format(
+                    meta["instrument"],
+                    meta["filter"],
+                    meta["pupil"],
+                    nominal_pix_scale_x,
+                )
+            )
+        )
     # If the pixel scale reported in the mosaic file is the same as the
     # nominal pixel scale for that instrument/detector, then just read in
     # the PSF from the psf_wings file
-    instrument = meta['instrument'].lower()
-    psf_model = get_psf_wings(meta['instrument'], meta['detector'], meta['filter'], meta['pupil'],
-                              'predicted', 0, os.path.join(os.path.expandvars('$MIRAGE_DATA'),
-                                                           instrument, 'gridded_psf_library/psf_wings'))
+    instrument = meta["instrument"].lower()
+    psf_model = get_psf_wings(
+        meta["instrument"],
+        meta["detector"],
+        meta["filter"],
+        meta["pupil"],
+        "predicted",
+        0,
+        os.path.join(
+            os.path.expandvars("$MIRAGE_DATA"),
+            instrument,
+            "gridded_psf_library/psf_wings",
+        ),
+    )
 
     return psf_model
 
@@ -223,54 +255,74 @@ def get_psf_metadata(filename):
         # primary header
         header = hdulist[0].header
 
-        metadata['telescope'] = metadata_entry('TELESCOP', header).upper()
-        metadata['instrument'] = metadata_entry('INSTRUME', header).upper()
+        metadata["telescope"] = metadata_entry("TELESCOP", header).upper()
+        metadata["instrument"] = metadata_entry("INSTRUME", header).upper()
 
-        if metadata['telescope'] == 'JWST':
-            metadata['detector'] = metadata_entry('DETECTOR', header)
-            metadata['filter'] = metadata_entry('FILTER', header)
-            metadata['pupil'] = metadata_entry('PUPIL', header)
-            metadata['pix_scale1'] = np.abs(metadata_entry('CD1_1', header)) * 3600.
-            metadata['pix_scale2'] = np.abs(metadata_entry('CD2_2', header)) * 3600.
+        if metadata["telescope"] == "JWST":
+            metadata["detector"] = metadata_entry("DETECTOR", header)
+            metadata["filter"] = metadata_entry("FILTER", header)
+            metadata["pupil"] = metadata_entry("PUPIL", header)
+            metadata["pix_scale1"] = np.abs(metadata_entry("CD1_1", header)) * 3600.0
+            metadata["pix_scale2"] = np.abs(metadata_entry("CD2_2", header)) * 3600.0
 
-        if metadata['telescope'] == 'HST':
-            metadata['detector'] = metadata_entry('DETECTOR', header)
-            metadata['filter'] = metadata_entry('FILTER', header)
-            metadata['pa'] = metadata_entry('PA_APER', header)  # PA of reference aperture center
-            metadata['pix_scale1'] = np.abs(metadata_entry('CD1_1', header)) * 3600.
-            metadata['pix_scale2'] = np.abs(metadata_entry('CD2_2', header)) * 3600.
+        if metadata["telescope"] == "HST":
+            metadata["detector"] = metadata_entry("DETECTOR", header)
+            metadata["filter"] = metadata_entry("FILTER", header)
+            metadata["pa"] = metadata_entry(
+                "PA_APER", header
+            )  # PA of reference aperture center
+            metadata["pix_scale1"] = np.abs(metadata_entry("CD1_1", header)) * 3600.0
+            metadata["pix_scale2"] = np.abs(metadata_entry("CD2_2", header)) * 3600.0
 
-        if metadata['instrument'] == 'IRAC':
-            metadata['channel'] = int(metadata_entry('CHNLNUM', header))
-            metadata['pix_scale1'] = np.abs(metadata_entry('PXSCAL1', header))
-            if metadata['pix_scale1'] is None:
-                metadata['pix_scale1'] = np.abs(metadata_entry('CDELT1', header)) / 3600.
+        if metadata["instrument"] == "IRAC":
+            metadata["channel"] = int(metadata_entry("CHNLNUM", header))
+            metadata["pix_scale1"] = np.abs(metadata_entry("PXSCAL1", header))
+            if metadata["pix_scale1"] is None:
+                metadata["pix_scale1"] = (
+                    np.abs(metadata_entry("CDELT1", header)) / 3600.0
+                )
 
-            metadata['pix_scale2'] = np.abs(metadata_entry('PXSCAL2', header))
-            if metadata['pix_scale2'] is None:
-                metadata['pix_scale2'] = np.abs(metadata_entry('CDELT2', header)) / 3600.
+            metadata["pix_scale2"] = np.abs(metadata_entry("PXSCAL2", header))
+            if metadata["pix_scale2"] is None:
+                metadata["pix_scale2"] = (
+                    np.abs(metadata_entry("CDELT2", header)) / 3600.0
+                )
 
-            if ((metadata['pix_scale1'] is None) or (metadata['pix_scale2'] is None)):
-                raise ValueError(('Unable to determine pixel scale of input image. Header must contain '
-                                  'either PXSCAL1 and PXSCAL2 with values in arcsec per pixel, or CDELT1 '
-                                  'and CDELT2 with values in degrees per pixel.'))
+            if (metadata["pix_scale1"] is None) or (metadata["pix_scale2"] is None):
+                raise ValueError(
+                    (
+                        "Unable to determine pixel scale of input image. Header must contain "
+                        "either PXSCAL1 and PXSCAL2 with values in arcsec per pixel, or CDELT1 "
+                        "and CDELT2 with values in degrees per pixel."
+                    )
+                )
 
-            metadata['pa'] = metadata_entry('PA', header)  # deg] Position angle of axis 2 (E of N)
-            if metadata['pa'] is None:
-                metadata['pa'] = 365. - metadata_entry('CROTA2', header)
-                if metadata['pa'] is None:
-                    raise ValueError(('Unable to determine position angle of input image. Header must contain '
-                                      'either PA with the angle of axis 2 East of North in degrees, or CROTA2 '
-                                      'with the angle of axis 2 West of North in degrees.'))
+            metadata["pa"] = metadata_entry(
+                "PA", header
+            )  # deg] Position angle of axis 2 (E of N)
+            if metadata["pa"] is None:
+                metadata["pa"] = 365.0 - metadata_entry("CROTA2", header)
+                if metadata["pa"] is None:
+                    raise ValueError(
+                        (
+                            "Unable to determine position angle of input image. Header must contain "
+                            "either PA with the angle of axis 2 East of North in degrees, or CROTA2 "
+                            "with the angle of axis 2 West of North in degrees."
+                        )
+                    )
 
-            cd_check = metadata_entry('CD1_1', header)
+            cd_check = metadata_entry("CD1_1", header)
             if cd_check is None:
-                raise ValueError(('CD matrix not present in input image. Unable to proceed. Will not be able '
-                                  'to extract the appropriate subarray from the image to use for the simulation.'))
+                raise ValueError(
+                    (
+                        "CD matrix not present in input image. Unable to proceed. Will not be able "
+                        "to extract the appropriate subarray from the image to use for the simulation."
+                    )
+                )
 
-        if metadata['telescope'] not in 'JWST HST SPITZER'.split():
-            metadata['pix_scale1'] = np.abs(metadata_entry('CD1_1', header)) * 3600.
-            metadata['pix_scale2'] = np.abs(metadata_entry('CD2_2', header)) * 3600.
+        if metadata["telescope"] not in "JWST HST SPITZER".split():
+            metadata["pix_scale1"] = np.abs(metadata_entry("CD1_1", header)) * 3600.0
+            metadata["pix_scale2"] = np.abs(metadata_entry("CD2_2", header)) * 3600.0
 
     return metadata
 
@@ -292,7 +344,10 @@ def measure_fwhm(array):
         FWHM in y direction in units of pixels
     """
     yp, xp = array.shape
-    y, x, = np.mgrid[:yp, :xp]
+    (
+        y,
+        x,
+    ) = np.mgrid[:yp, :xp]
     p_init = models.Gaussian2D()
     fit_p = fitting.LevMarLSQFitter()
     fitted_psf = fit_p(p_init, x, y, array)
@@ -367,7 +422,7 @@ def same_array_size(array1, array2):
         high_delta = low_delta + 1
     else:
         high_delta = low_delta
-    larger = larger[low_delta: larger_shape[0]-high_delta, :]
+    larger = larger[low_delta : larger_shape[0] - high_delta, :]
 
     if shape1[0] == miny:
         array1 = smaller
@@ -396,7 +451,7 @@ def same_array_size(array1, array2):
         high_delta = low_delta + 1
     else:
         high_delta = low_delta
-    larger = larger[:, low_delta: larger_shape[1]-high_delta]
+    larger = larger[:, low_delta : larger_shape[1] - high_delta]
 
     if shape1[1] == minx:
         array1 = smaller

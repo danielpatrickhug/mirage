@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-'''
+"""
 To make the generation of imaging (including moving target)
 simulated integrations easier, combine the 3 relevant stages
 of the simulator (seed image generator, dark prep,
@@ -9,7 +9,7 @@ obervation generator) into a single script.
 HISTORY:
 13 November 2017 - created, Bryan Hilbert
 13 July 2018 - updated for name change to Mirage, Bryan Hilbert
-'''
+"""
 
 import os
 import argparse
@@ -27,11 +27,11 @@ from .utils.utils import ensure_dir_exists, expand_environment_variable
 
 
 classpath = os.path.dirname(__file__)
-log_config_file = os.path.join(classpath, 'logging', LOG_CONFIG_FILENAME)
+log_config_file = os.path.join(classpath, "logging", LOG_CONFIG_FILENAME)
 logging_functions.create_logger(log_config_file, STANDARD_LOGFILE_NAME)
 
 
-class ImgSim():
+class ImgSim:
     """Class to hold a simulated exposure
 
     Parameters
@@ -49,8 +49,9 @@ class ImgSim():
         be called and new dark objects will be created.
 
     """
+
     def __init__(self, paramfile=None, override_dark=None, offline=False):
-        self.env_var = 'MIRAGE_DATA'
+        self.env_var = "MIRAGE_DATA"
         datadir = expand_environment_variable(self.env_var, offline=offline)
 
         self.paramfile = paramfile
@@ -59,9 +60,9 @@ class ImgSim():
 
     def create(self):
         # Initialize the log using dictionary from the yaml file
-        self.logger = logging.getLogger('mirage.imaging_simulator')
-        self.logger.info('\n\nRunning imaging_simulator....\n')
-        self.logger.info('using parameter file: {}'.format(self.paramfile))
+        self.logger = logging.getLogger("mirage.imaging_simulator")
+        self.logger.info("\n\nRunning imaging_simulator....\n")
+        self.logger.info("using parameter file: {}".format(self.paramfile))
 
         # Create seed image
         cat = catalog_seed_image.Catalog_seed(offline=self.offline)
@@ -74,7 +75,7 @@ class ImgSim():
         # Prepare dark current exposure if
         # needed.
         if self.override_dark is None:
-            self.logger.info('Perform dark preparation:')
+            self.logger.info("Perform dark preparation:")
             d = dark_prep.DarkPrep(offline=self.offline)
             d.paramfile = self.paramfile
             d.prepare()
@@ -84,7 +85,7 @@ class ImgSim():
             else:
                 obs.linDark = d.dark_files
         else:
-            self.logger.info('\n\noverride_dark has been set. Skipping dark_prep.')
+            self.logger.info("\n\noverride_dark has been set. Skipping dark_prep.")
             if isinstance(self.override_dark, str):
                 self.read_dark_product(self.override_dark)
                 obs.linDark = self.prepDark
@@ -99,8 +100,8 @@ class ImgSim():
             obs.seedheader = cat.seedinfo
         else:
             obs.seed = cat.seed_files
-            self.logger.info('USING SEED_FILES')
-            self.logger.info('{}'.format(cat.seed_files))
+            self.logger.info("USING SEED_FILES")
+            self.logger.info("{}".format(cat.seed_files))
         obs.create()
 
         # Make useful information class attributes
@@ -109,8 +110,10 @@ class ImgSim():
         self.seedinfo = cat.seedinfo
         self.linDark = obs.linDark
 
-        self.logger.info('\nImaging simulator complete')
-        logging_functions.move_logfile_to_standard_location(self.paramfile, STANDARD_LOGFILE_NAME)
+        self.logger.info("\nImaging simulator complete")
+        logging_functions.move_logfile_to_standard_location(
+            self.paramfile, STANDARD_LOGFILE_NAME
+        )
 
     def get_output_dir(self):
         """Get the output directory name from self.paramfile
@@ -121,7 +124,7 @@ class ImgSim():
             Output directory specified in self.paramfile
         """
         self.read_param_file()
-        outdir = self.params['Output']['directory']
+        outdir = self.params["Output"]["directory"]
         return outdir
 
     def read_dark_product(self, file):
@@ -133,15 +136,22 @@ class ImgSim():
 
     def add_options(self, parser=None, usage=None):
         if parser is None:
-            parser = argparse.ArgumentParser(usage=usage, description="Wrapper for the creation of WFSS simulated exposures.")
-        parser.add_argument("paramfile", help='Name of simulator input yaml file')
-        parser.add_argument("--override_dark", help="If supplied, skip the dark preparation step and use the supplied dark to make the exposure", default=None)
+            parser = argparse.ArgumentParser(
+                usage=usage,
+                description="Wrapper for the creation of WFSS simulated exposures.",
+            )
+        parser.add_argument("paramfile", help="Name of simulator input yaml file")
+        parser.add_argument(
+            "--override_dark",
+            help="If supplied, skip the dark preparation step and use the supplied dark to make the exposure",
+            default=None,
+        )
         return parser
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
-    usagestring = 'USAGE: imaging_simualtor.py file1.yaml'
+    usagestring = "USAGE: imaging_simualtor.py file1.yaml"
 
     obs = ImgSim()
     parser = obs.add_options(usage=usagestring)

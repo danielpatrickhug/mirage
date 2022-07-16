@@ -26,11 +26,13 @@ def create_interpol_function(ephemeris):
     """
     # In order to create an interpolation function, we need to translate
     # the datetime objects into calendar timestamps
-    time = [to_timestamp(entry) for entry in ephemeris['Time']]
-    ra_interp = interp1d(time, ephemeris['RA'].data,
-                         bounds_error=True, kind='quadratic')
-    dec_interp = interp1d(time, ephemeris['Dec'].data,
-                          bounds_error=True, kind='quadratic')
+    time = [to_timestamp(entry) for entry in ephemeris["Time"]]
+    ra_interp = interp1d(
+        time, ephemeris["RA"].data, bounds_error=True, kind="quadratic"
+    )
+    dec_interp = interp1d(
+        time, ephemeris["Dec"].data, bounds_error=True, kind="quadratic"
+    )
     return ra_interp, dec_interp
 
 
@@ -52,11 +54,11 @@ def get_ephemeris(method):
         functions are for RA (or Dec) in degrees as a function of
         calendar timestamp
     """
-    if method.lower() != 'create':
+    if method.lower() != "create":
         ephem = read_ephemeris_file(method)
     else:
-        raise NotImplementedError('Horizons query not yet working')
-        start_date = datetime.datetime.strptime(starting_date, '%Y-%m-%d')
+        raise NotImplementedError("Horizons query not yet working")
+        start_date = datetime.datetime.strptime(starting_date, "%Y-%m-%d")
         earlier = start_date - datetime.timedelta(days=1)
         later = start_date + datetime.timedelta(days=1)
         step_size = 0.1  # days
@@ -105,29 +107,41 @@ def read_ephemeris_file(filename):
     time = []
     for i, line in enumerate(lines):
         newline = " ".join(line.split())
-        if 'Date__(UT)__HR:MN' in line:
+        if "Date__(UT)__HR:MN" in line:
             use_line = True
             start_line = i
         if use_line:
             try:
-                date_val, time_val, ra_h, ra_m, ra_s, dec_d, dec_m, dec_s, *others = newline.split(' ')
-                ra_str = '{}h{}m{}s'.format(ra_h, ra_m, ra_s)
-                dec_str = '{}d{}m{}s'.format(dec_d, dec_m, dec_s)
-                location = SkyCoord(ra_str, dec_str, frame='icrs')
+                (
+                    date_val,
+                    time_val,
+                    ra_h,
+                    ra_m,
+                    ra_s,
+                    dec_d,
+                    dec_m,
+                    dec_s,
+                    *others,
+                ) = newline.split(" ")
+                ra_str = "{}h{}m{}s".format(ra_h, ra_m, ra_s)
+                dec_str = "{}d{}m{}s".format(dec_d, dec_m, dec_s)
+                location = SkyCoord(ra_str, dec_str, frame="icrs")
                 ra.append(location.ra.value)
                 dec.append(location.dec.value)
-                dt = datetime.strptime("{} {}".format(date_val, time_val), "%Y-%b-%d %H:%M")
+                dt = datetime.strptime(
+                    "{} {}".format(date_val, time_val), "%Y-%b-%d %H:%M"
+                )
                 time.append(dt)
             except:
                 pass
 
-            if (('*****' in line) and (i > (start_line+2))):
+            if ("*****" in line) and (i > (start_line + 2)):
                 use_line = False
 
     ephemeris = Table()
-    ephemeris['Time'] = time
-    ephemeris['RA'] = ra
-    ephemeris['Dec'] = dec
+    ephemeris["Time"] = time
+    ephemeris["RA"] = ra
+    ephemeris["Dec"] = dec
     return ephemeris
 
 
@@ -152,11 +166,11 @@ def query_horizons(object_name, start_date, stop_date, step_size):
     """
     from astroquery.jplhorizons import Horizons
 
-    obj = Horizons(id=object_name, location='568',
-                   epochs={'start':start_date, 'stop':stop_date,
-                           'step':step_size})
-    #eph = obj.ephemerides()
-    raise NotImplementedError('Horizons query from within Mirage not yet implemented.')
+    obj = Horizons(
+        id=object_name,
+        location="568",
+        epochs={"start": start_date, "stop": stop_date, "step": step_size},
+    )
+    # eph = obj.ephemerides()
+    raise NotImplementedError("Horizons query from within Mirage not yet implemented.")
     return eph
-
-

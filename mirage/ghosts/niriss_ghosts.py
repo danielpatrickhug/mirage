@@ -33,33 +33,46 @@ def determine_ghost_stamp_filename(row, source_type):
         Name of a fits file containing a stamp image to use for the ghost source
         associated with the source in ```row```.
     """
-    logger = logging.getLogger('mirage.ghosts.niriss_ghosts.determine_ghost_stamp_filename')
-    if source_type.lower() == 'point_source':
+    logger = logging.getLogger(
+        "mirage.ghosts.niriss_ghosts.determine_ghost_stamp_filename"
+    )
+    if source_type.lower() == "point_source":
         default = DEFAULT_NIRISS_PTSRC_GHOST_FILE
-    elif source_type.lower() == 'galaxies':
+    elif source_type.lower() == "galaxies":
         default = None
-    elif source_type.lower() == 'extended':
+    elif source_type.lower() == "extended":
         default = None
     else:
-        raise ValueError('Invalid source_type. Unable to continue.')
+        raise ValueError("Invalid source_type. Unable to continue.")
 
-    if 'niriss_ghost_stamp' in row.colnames:
-        if row['niriss_ghost_stamp'] is not None and row['niriss_ghost_stamp'].lower() != 'none':
-            ghost_stamp_filename = row['niriss_ghost_stamp']
+    if "niriss_ghost_stamp" in row.colnames:
+        if (
+            row["niriss_ghost_stamp"] is not None
+            and row["niriss_ghost_stamp"].lower() != "none"
+        ):
+            ghost_stamp_filename = row["niriss_ghost_stamp"]
         else:
             if default is not None:
                 ghost_stamp_filename = default
             else:
                 ghost_stamp_filename = None
-                logger.info(('No niriss_ghost_stamp filename for this source in the source catalog, and the default '
-                             'file is set to None. Skipping ghost addition for this source.'))
+                logger.info(
+                    (
+                        "No niriss_ghost_stamp filename for this source in the source catalog, and the default "
+                        "file is set to None. Skipping ghost addition for this source."
+                    )
+                )
     else:
         if default is not None:
             ghost_stamp_filename = default
         else:
             ghost_stamp_filename = None
-            logger.info(('No niriss_ghost_stamp column in source catalog, and the default file is set to None. '
-                         'Skipping ghost addition for this source.'))
+            logger.info(
+                (
+                    "No niriss_ghost_stamp column in source catalog, and the default file is set to None. "
+                    "Skipping ghost addition for this source."
+                )
+            )
     return ghost_stamp_filename
 
 
@@ -94,22 +107,31 @@ def get_gap(filter_name, pupil_name, gap_file, log_skipped_filters=True):
         Fraction of ghost flux relative to the source flux.
 
     """
-    logger = logging.getLogger('mirage.ghosts.niriss_ghosts.get_gap')
+    logger = logging.getLogger("mirage.ghosts.niriss_ghosts.get_gap")
     tab_gap = ascii.read(gap_file)
-    iix = np.where((tab_gap['filt'] == filter_name.upper()) & (tab_gap['pupil'] == pupil_name.upper()))
+    iix = np.where(
+        (tab_gap["filt"] == filter_name.upper())
+        & (tab_gap["pupil"] == pupil_name.upper())
+    )
 
     if len(iix[0]) > 0:
-        xgap, ygap = tab_gap['gapx_50'][iix[0][0]], tab_gap['gapy_50'][iix[0][0]]
-        frac = tab_gap['frac_50'][iix[0][0]]
+        xgap, ygap = tab_gap["gapx_50"][iix[0][0]], tab_gap["gapy_50"][iix[0][0]]
+        frac = tab_gap["frac_50"][iix[0][0]]
     elif len(iix[0]) == 0:
         if log_skipped_filters:
-            logger.info('Filter/Pupil {}/{} not found in the ghost gap file {}. Unable to add ghosts.'.format(filter_name, pupil_name, gap_file))
+            logger.info(
+                "Filter/Pupil {}/{} not found in the ghost gap file {}. Unable to add ghosts.".format(
+                    filter_name, pupil_name, gap_file
+                )
+            )
         return np.nan, np.nan, np.nan
 
     return xgap, ygap, frac
 
 
-def get_ghost(x, y, flux, filter_name, pupil_name, gap_file, shift=0, log_skipped_filters=True):
+def get_ghost(
+    x, y, flux, filter_name, pupil_name, gap_file, shift=0, log_skipped_filters=True
+):
     """
     Calculates expected ghost positions given position of a source.
 
@@ -151,7 +173,9 @@ def get_ghost(x, y, flux, filter_name, pupil_name, gap_file, shift=0, log_skippe
     flux_gs : float or numpy.array
         fluxes of ghosts
     """
-    xgap, ygap, frac = get_gap(filter_name, pupil_name, gap_file, log_skipped_filters=log_skipped_filters)
+    xgap, ygap, frac = get_gap(
+        filter_name, pupil_name, gap_file, log_skipped_filters=log_skipped_filters
+    )
 
     xgap += shift
     ygap += shift
@@ -160,14 +184,21 @@ def get_ghost(x, y, flux, filter_name, pupil_name, gap_file, shift=0, log_skippe
     ygs = 2 * ygap - y
 
     try:
-        flux_gs = flux * frac / 100.
+        flux_gs = flux * frac / 100.0
     except:
-        flux_gs = np.zeros(len(xgap), 'float')
+        flux_gs = np.zeros(len(xgap), "float")
 
     return xgs, ygs, flux_gs
 
 
-def source_mags_to_ghost_mags(row, flux_cal_file, magnitude_system, gap_summary_file, filter_value_ghost, log_skipped_filters=False):
+def source_mags_to_ghost_mags(
+    row,
+    flux_cal_file,
+    magnitude_system,
+    gap_summary_file,
+    filter_value_ghost,
+    log_skipped_filters=False,
+):
     """Works only for NIRISS. Given a row from a source catalog, create a ghost source
     catalog containing the magnitudes of the ghost associated with the source in all
     filters contained in the original catalog.
@@ -204,51 +235,74 @@ def source_mags_to_ghost_mags(row, flux_cal_file, magnitude_system, gap_summary_
         If True, non NIRISS magnitude columns were found and skipped
 
     """
-    logger = logging.getLogger('mirage.ghosts.niriss_ghosts.source_mags_to_ghost_mags')
-    mag_cols = [key for key in row.colnames if 'magnitude' in key]
+    logger = logging.getLogger("mirage.ghosts.niriss_ghosts.source_mags_to_ghost_mags")
+    mag_cols = [key for key in row.colnames if "magnitude" in key]
     ghost_row = Table()
     skipped_non_niriss_cols = False
     for mag_col in mag_cols:
 
         # Ghost magnitudes can currently be calcuated only for NIRISS
-        if 'nircam' in mag_col.lower() or 'fgs' in mag_col.lower():
+        if "nircam" in mag_col.lower() or "fgs" in mag_col.lower():
             skipped_non_niriss_cols = True
             continue
 
-        col_parts = mag_col.split('_')
+        col_parts = mag_col.split("_")
         if len(col_parts) == 3:
             filt = col_parts[1]
         else:
-            raise ValueError('Unsupported magnitude column name for ghost conversion: {}'.format(mag_col))
+            raise ValueError(
+                "Unsupported magnitude column name for ghost conversion: {}".format(
+                    mag_col
+                )
+            )
 
         wave = int(filt[1:4])
         if wave > 200:
             filter_value = filt
-            pupil_value = 'CLEARP'
+            pupil_value = "CLEARP"
         else:
-            filter_value = 'CLEAR'
+            filter_value = "CLEAR"
             pupil_value = filt
 
         # Get basic flux calibration information for the filter
-        vegazeropoint, photflam, photfnu, pivot = \
-            fluxcal_info(flux_cal_file, 'niriss', filter_value, pupil_value, 'NIS', 'N')
+        vegazeropoint, photflam, photfnu, pivot = fluxcal_info(
+            flux_cal_file, "niriss", filter_value, pupil_value, "NIS", "N"
+        )
 
         # Convert source magnitude to count rate
         mag = float(row[mag_col])
-        countrate = magnitude_to_countrate('niriss', filt, magnitude_system, mag,
-                                            photfnu=photfnu, photflam=photflam,
-                                            vegamag_zeropoint=vegazeropoint)
+        countrate = magnitude_to_countrate(
+            "niriss",
+            filt,
+            magnitude_system,
+            mag,
+            photfnu=photfnu,
+            photflam=photflam,
+            vegamag_zeropoint=vegazeropoint,
+        )
 
         # Get the count rate associated with the ghost
-        if filter_value_ghost[0] == 'G':
-            filter_value_ghost = 'GR150'
-        _, _, ghost_countrate = get_ghost(1024, 1024, countrate, filter_value_ghost, pupil_value, gap_summary_file,
-                                          log_skipped_filters=log_skipped_filters)
+        if filter_value_ghost[0] == "G":
+            filter_value_ghost = "GR150"
+        _, _, ghost_countrate = get_ghost(
+            1024,
+            1024,
+            countrate,
+            filter_value_ghost,
+            pupil_value,
+            gap_summary_file,
+            log_skipped_filters=log_skipped_filters,
+        )
 
         # Convert count rate to magnitude
-        ghost_mag = countrate_to_magnitude('niriss', filt, magnitude_system, ghost_countrate,
-                                            photfnu=photfnu, photflam=photflam,
-                                            vegamag_zeropoint=vegazeropoint)
+        ghost_mag = countrate_to_magnitude(
+            "niriss",
+            filt,
+            magnitude_system,
+            ghost_countrate,
+            photfnu=photfnu,
+            photflam=photflam,
+            vegamag_zeropoint=vegazeropoint,
+        )
         ghost_row[mag_col] = [ghost_mag]
     return ghost_row, skipped_non_niriss_cols
-

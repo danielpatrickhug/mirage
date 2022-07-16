@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-'''
+"""
 Class that creates an integration containing multiple frames and
 shows a source that is moving relative to the detector.
 
@@ -26,7 +26,7 @@ of the integration
 Author:
 -------
 Bryan Hilbert
-'''
+"""
 
 import logging
 import os
@@ -39,13 +39,12 @@ from ..logging import logging_functions
 from ..utils.constants import LOG_CONFIG_FILENAME, STANDARD_LOGFILE_NAME
 
 
-classdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../'))
-log_config_file = os.path.join(classdir, 'logging', LOG_CONFIG_FILENAME)
+classdir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
+log_config_file = os.path.join(classdir, "logging", LOG_CONFIG_FILENAME)
 logging_functions.create_logger(log_config_file, STANDARD_LOGFILE_NAME)
 
 
-class MovingTarget():
-
+class MovingTarget:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         self.verbose = False
@@ -85,16 +84,17 @@ class MovingTarget():
         yinit = np.float(yframes[1])
 
         # Change position angle to radians
-        #posang = posang * np.pi / 180.
+        # posang = posang * np.pi / 180.
 
         # List of times for all frames
-        numframes = len(xframes)-1
+        numframes = len(xframes) - 1
         times = frametime * np.arange(-1, numframes)
 
         # Generate a list of locations at dist-pixel increments
         # between the beginning and ending locations
-        xs, ys = self.equidistantXY(xframes[0], yframes[0], xframes[-1],
-                                    yframes[-1], 1./self.subsampx)
+        xs, ys = self.equidistantXY(
+            xframes[0], yframes[0], xframes[-1], yframes[-1], 1.0 / self.subsampx
+        )
 
         # Subsample the PSF image
         substamp = self.subsample(stamp, self.subsampx, self.subsampy)
@@ -102,16 +102,40 @@ class MovingTarget():
 
         # Create the initial output frame
         ystamplen, xstamplen = stamp.shape
-        #minx = np.min([np.floor(xinit) - np.ceil(xstamplen/2.),np.floor(xframes[-1])-np.ceil(xstamplen/2.)])
-        minx = np.int(np.min([np.floor(xframes[0]) - np.ceil(xstamplen/2.),\
-                              np.floor(xframes[-1])-np.ceil(xstamplen/2.)]))
-        maxx = np.int(np.max([np.floor(xframes[-1] + xstamplen/2.),\
-                              np.floor(xframes[0]+xstamplen/2.)]))
-        #miny = np.min([np.floor(yinit) - np.ceil(ystamplen/2.),np.floor(yframes[-1])-np.ceil(ystamplen/2.)])
-        miny = np.int(np.min([np.floor(yframes[0]) - np.ceil(ystamplen/2.),\
-                              np.floor(yframes[-1])-np.ceil(ystamplen/2.)]))
-        maxy = np.int(np.max([np.floor(yframes[-1] + ystamplen/2.),\
-                              np.floor(yframes[0]+ystamplen/2.)]))
+        # minx = np.min([np.floor(xinit) - np.ceil(xstamplen/2.),np.floor(xframes[-1])-np.ceil(xstamplen/2.)])
+        minx = np.int(
+            np.min(
+                [
+                    np.floor(xframes[0]) - np.ceil(xstamplen / 2.0),
+                    np.floor(xframes[-1]) - np.ceil(xstamplen / 2.0),
+                ]
+            )
+        )
+        maxx = np.int(
+            np.max(
+                [
+                    np.floor(xframes[-1] + xstamplen / 2.0),
+                    np.floor(xframes[0] + xstamplen / 2.0),
+                ]
+            )
+        )
+        # miny = np.min([np.floor(yinit) - np.ceil(ystamplen/2.),np.floor(yframes[-1])-np.ceil(ystamplen/2.)])
+        miny = np.int(
+            np.min(
+                [
+                    np.floor(yframes[0]) - np.ceil(ystamplen / 2.0),
+                    np.floor(yframes[-1]) - np.ceil(ystamplen / 2.0),
+                ]
+            )
+        )
+        maxy = np.int(
+            np.max(
+                [
+                    np.floor(yframes[-1] + ystamplen / 2.0),
+                    np.floor(yframes[0] + ystamplen / 2.0),
+                ]
+            )
+        )
 
         # Don't let stamps fall off the edges of the output array
         mnx = minx
@@ -121,43 +145,53 @@ class MovingTarget():
         if minx < 0:
             mnx = 0
         if maxx > outx:
-            mxx = np.int(outx-1)
+            mxx = np.int(outx - 1)
         if miny < 0:
             mny = 0
         if maxy > outy:
-            mxy = np.int(outy-1)
+            mxy = np.int(outy - 1)
 
         # Subsample the output frame
-        totxpoints = np.min([outx,mxx-mnx+1])
-        totypoints = np.min([outy,mxy-mny+1])
-        outputframe0 = np.zeros((np.int(totypoints*self.subsampy),\
-                                 np.int(totxpoints*self.subsampx)))
-        outputframe1 = np.zeros((np.int(totypoints*self.subsampy),\
-                                 np.int(totxpoints*self.subsampx)))
+        totxpoints = np.min([outx, mxx - mnx + 1])
+        totypoints = np.min([outy, mxy - mny + 1])
+        outputframe0 = np.zeros(
+            (np.int(totypoints * self.subsampy), np.int(totxpoints * self.subsampx))
+        )
+        outputframe1 = np.zeros(
+            (np.int(totypoints * self.subsampy), np.int(totxpoints * self.subsampx))
+        )
         outfull = np.zeros((numframes, outy, outx))
         outsubshape = outputframe0.shape
 
         # Translate the source location x and y values to the coordinates
         # of the output frame
-        deltacenterx = np.round(self.subsampx / 2. - 1 + 0.000001)
-        deltacentery = np.round(self.subsampy / 2. - 1 + 0.000001)
-        xframessub = np.round((xframes-mnx) * self.subsampx) + deltacenterx
-        yframessub = np.round((yframes-mny) * self.subsampy) + deltacentery
-        xssub = np.round((xs-mnx) * self.subsampx) + deltacenterx
-        yssub = np.round((ys-mny) * self.subsampy) + deltacentery
+        deltacenterx = np.round(self.subsampx / 2.0 - 1 + 0.000001)
+        deltacentery = np.round(self.subsampy / 2.0 - 1 + 0.000001)
+        xframessub = np.round((xframes - mnx) * self.subsampx) + deltacenterx
+        yframessub = np.round((yframes - mny) * self.subsampy) + deltacentery
+        xssub = np.round((xs - mnx) * self.subsampx) + deltacenterx
+        yssub = np.round((ys - mny) * self.subsampy) + deltacentery
 
-        for i in range(1,numframes+1):
+        for i in range(1, numframes + 1):
             # Find the velocity of the source during this frame
             outputframe1 = np.copy(outputframe0)
 
-            if xframessub[i-1] < xframessub[i]:
-                goodxs = ((xssub > (xframessub[i-1]+1e-7)) & (xssub < (xframessub[i]-1e-7)))
+            if xframessub[i - 1] < xframessub[i]:
+                goodxs = (xssub > (xframessub[i - 1] + 1e-7)) & (
+                    xssub < (xframessub[i] - 1e-7)
+                )
             else:
-                goodxs = ((xssub > (xframessub[i]+1e-7)) & (xssub < (xframessub[i-1]-1e-7)))
-            if yframessub[i-1] < yframessub[i]:
-                goodys = ((yssub > (yframessub[i-1]+1e-7)) & (yssub < (yframessub[i]-1e-7)))
+                goodxs = (xssub > (xframessub[i] + 1e-7)) & (
+                    xssub < (xframessub[i - 1] - 1e-7)
+                )
+            if yframessub[i - 1] < yframessub[i]:
+                goodys = (yssub > (yframessub[i - 1] + 1e-7)) & (
+                    yssub < (yframessub[i] - 1e-7)
+                )
             else:
-                goodys = ((yssub > (yframessub[i]+1e-7)) & (yssub < (yframessub[i-1]-1e-7)))
+                goodys = (yssub > (yframessub[i] + 1e-7)) & (
+                    yssub < (yframessub[i - 1] - 1e-7)
+                )
 
             xsum = np.sum(goodxs)
             ysum = np.sum(goodys)
@@ -166,23 +200,31 @@ class MovingTarget():
             else:
                 good = goodys
 
-            if (np.all((xframes[i-1:i+1]-xstamplen) > outx) or \
-                (np.all((yframes[i-1:i+1]-ystamplen) > outy))):
+            if np.all((xframes[i - 1 : i + 1] - xstamplen) > outx) or (
+                np.all((yframes[i - 1 : i + 1] - ystamplen) > outy)
+            ):
                 outputframe1 = np.copy(outputframe0)
-            elif (np.all((xframes[i-1:i+1]+xstamplen) < 0) or \
-                  (np.all((yframes[i-1:i+1]+ystamplen) < 0))):
+            elif np.all((xframes[i - 1 : i + 1] + xstamplen) < 0) or (
+                np.all((yframes[i - 1 : i + 1] + ystamplen) < 0)
+            ):
                 outputframe1 = np.copy(outputframe0)
             else:
-                outputframe1 = self.inputMotion(outputframe1, substamp, xframessub[i-1:i+1],
-                                                yframessub[i-1:i+1],xssub[good],yssub[good],
-                                                frametime)
+                outputframe1 = self.inputMotion(
+                    outputframe1,
+                    substamp,
+                    xframessub[i - 1 : i + 1],
+                    yframessub[i - 1 : i + 1],
+                    xssub[good],
+                    yssub[good],
+                    frametime,
+                )
 
             outputframe0 = np.copy(outputframe1)
 
             # Put the output frames back to the original resolution
             resampled = self.resample(outputframe1, self.subsampx, self.subsampy)
             resampylen, resampxlen = resampled.shape
-            #outfull[i-1,mny:mxy+1,mnx:mxx+1] = resampled
+            # outfull[i-1,mny:mxy+1,mnx:mxx+1] = resampled
             maxfully = mny + resampylen
             maxfullx = mnx + resampxlen
             maxrey = resampylen
@@ -195,7 +237,7 @@ class MovingTarget():
                 diffind = (mnx + resampxlen) - outx
                 maxfullx = outx
                 maxrex -= diffind
-            outfull[i-1, mny:maxfully, mnx:maxfullx] = resampled[0:maxrey, 0:maxrex]
+            outfull[i - 1, mny:maxfully, mnx:maxfullx] = resampled[0:maxrey, 0:maxrex]
         return outfull
 
     def resample(self, frame, sampx, sampy):
@@ -214,12 +256,14 @@ class MovingTarget():
         resampled image
         """
         framey, framex = frame.shape
-        newframe = np.zeros((np.int(framey/sampy), np.int(framex/sampx)))
+        newframe = np.zeros((np.int(framey / sampy), np.int(framex / sampx)))
         newframey, newframex = newframe.shape
 
         for j in range(newframey):
             for i in range(newframex):
-                newframe[j, i] = np.sum(frame[sampy*j:sampy*(j+1), sampx*i:sampx*(i+1)])
+                newframe[j, i] = np.sum(
+                    frame[sampy * j : sampy * (j + 1), sampx * i : sampx * (i + 1)]
+                )
         return newframe
 
     def coordCheck(self, center, len_stamp, len_out):
@@ -243,14 +287,14 @@ class MovingTarget():
         well as the beginning and ending coordinates within the stamp
         image that fall onto the full frame aperture.
         """
-        outxmin = center - len_stamp/2
+        outxmin = center - len_stamp / 2
         outxmax = outxmin + len_stamp
         stampxmin = 0
         stampxmax = len_stamp
 
         # Left edge of stamp is off the edge of output
         if outxmin < 0:
-            if outxmin >= (0.-len_stamp):
+            if outxmin >= (0.0 - len_stamp):
                 stampxmin = 0 - outxmin
                 outxmin = 0
             else:
@@ -284,19 +328,19 @@ class MovingTarget():
 
             if dout == dstamp:
                 pass
-            elif dout == (dstamp+1):
+            elif dout == (dstamp + 1):
                 if istampxmin > 0:
                     istampxmin -= 1
                 else:
                     istampxmax += 1
-            elif dstamp == (dout+1):
+            elif dstamp == (dout + 1):
                 if ioutxmin > 0:
                     ioutxmin -= 1
                 else:
                     ioutxmax += 1
             else:
                 self.logger.error("WARNING: bad stamp/output match. Quitting.")
-                raise ValueError('Bad stamp/output match.')
+                raise ValueError("Bad stamp/output match.")
             return ioutxmin, ioutxmax, istampxmin, istampxmax
         else:
             # If values are NaN then we can't change them to integers
@@ -338,8 +382,8 @@ class MovingTarget():
         inframe : numpy.ndarray
             With streaked source added
         """
-        frameylen,framexlen = inframe.shape
-        srcylen,srcxlen = source.shape
+        frameylen, framexlen = inframe.shape
+        srcylen, srcxlen = source.shape
         xlist = np.append(xs, xbounds[1])
         ylist = np.append(ys, ybounds[1])
         xlist = np.insert(xlist, 0, xbounds[0])
@@ -350,16 +394,24 @@ class MovingTarget():
         # exposure time between two of these equidistant points
         pt_exptime = frame_time / len(xlist)
 
-        for i in range(1,len(xlist)):
-            outxmin, outxmax, stampxmin, stampxmax = self.coordCheck(xlist[i], srcxlen, framexlen)
-            outymin, outymax, stampymin, stampymax = self.coordCheck(ylist[i], srcylen, frameylen)
-            outcoords = np.array([outxmin,outxmax,outymin,outymax])
+        for i in range(1, len(xlist)):
+            outxmin, outxmax, stampxmin, stampxmax = self.coordCheck(
+                xlist[i], srcxlen, framexlen
+            )
+            outymin, outymax, stampymin, stampymax = self.coordCheck(
+                ylist[i], srcylen, frameylen
+            )
+            outcoords = np.array([outxmin, outxmax, outymin, outymax])
 
             # If any of the coordinates are set to NaN, then the stamp image is completely off
             # the output frame and it shouldn't be added
             if np.all(np.isfinite(outcoords)):
-                dist = np.sqrt((xlist[i]-xlist[i-1])**2 + (ylist[i]-ylist[i-1])**2)
-                inframe[outymin:outymax, outxmin:outxmax] += (source[stampymin:stampymax, stampxmin:stampxmax] * pt_exptime)
+                dist = np.sqrt(
+                    (xlist[i] - xlist[i - 1]) ** 2 + (ylist[i] - ylist[i - 1]) ** 2
+                )
+                inframe[outymin:outymax, outxmin:outxmax] += (
+                    source[stampymin:stampymax, stampxmin:stampxmax] * pt_exptime
+                )
         return inframe
 
     def subsample(self, image, factorx, factory):
@@ -382,14 +434,16 @@ class MovingTarget():
         Subsampled image
         """
         ydim, xdim = image.shape
-        substamp = np.zeros((ydim*factory, xdim*factorx))
+        substamp = np.zeros((ydim * factory, xdim * factorx))
 
         for i in range(xdim):
             for j in range(ydim):
-                substamp[factory*j:factory*(j+1), factorx*i:factorx*(i+1)] = image[j, i]
+                substamp[
+                    factory * j : factory * (j + 1), factorx * i : factorx * (i + 1)
+                ] = image[j, i]
         return substamp
 
-    def equidistantXY(self,xstart, ystart, xend, yend, dist):
+    def equidistantXY(self, xstart, ystart, xend, yend, dist):
         """
         Return a list of x,y positions that are equidistant
         between the beginning and ending positions, with
@@ -413,15 +467,15 @@ class MovingTarget():
         dx = np.cos(ang) * dist
         dy = np.sin(ang) * dist
 
-        if dx != 0.:
-            xs = np.arange(xstart, xend+dx/2, dx)
+        if dx != 0.0:
+            xs = np.arange(xstart, xend + dx / 2, dx)
             xlen = len(xs)
         else:
             # Motion parallel to y axis
             xs = np.array([xstart])
 
         if dy != 0:
-            ys = np.arange(ystart, yend+dy/2, dy)
+            ys = np.arange(ystart, yend + dy / 2, dy)
             ylen = len(ys)
         else:
             # Motion parallel to x asis
@@ -479,7 +533,7 @@ class MovingTarget():
         ratey = velocity * np.sin(ang)
 
         # x,y in each frame
-        xs = x0 + ratex*time
-        ys = y0 + ratey*time
+        xs = x0 + ratex * time
+        ys = y0 + ratey * time
 
-        return xs,ys
+        return xs, ys

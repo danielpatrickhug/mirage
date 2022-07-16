@@ -41,7 +41,7 @@ logging_functions.create_logger(log_config_file, STANDARD_LOGFILE_NAME)
 
 
 class PointSourceCatalog():
-    def __init__(self, ra=[], dec=[], x=[], y=[], starting_index=1, niriss_ghost_stamp=[]):
+    def __init__(self, ra: np.ndarray, dec: np.ndarray, x: np.ndarray, y: np.ndarray, niriss_ghost_stamp: np.ndarray, starting_index=1,):
         """Initialize the point source catalog. Users can enter lists of RA and Dec values
         or x and y values for source potisions
 

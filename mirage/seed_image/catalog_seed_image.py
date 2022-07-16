@@ -1,11 +1,11 @@
 #! /usr/bin env python
 
-'''
+"""
 Reorganization of ramp simulator code. This class is used to construct
 a "seed image" from a point source catalog. This seed image is a
 noiseless countrate image containing only sources. No noise, no
 cosmic rays.
-'''
+"""
 
 import argparse
 import datetime
@@ -44,47 +44,64 @@ from mirage.catalogs.catalog_generator import ExtendedCatalog, TSO_GRISM_INDEX
 from mirage.catalogs.utils import catalog_index_check, determine_used_cats
 from mirage.reference_files.downloader import download_file
 from mirage.seed_image import tso, ephemeris_tools
-from ..ghosts.niriss_ghosts import determine_ghost_stamp_filename, get_ghost, source_mags_to_ghost_mags
+from ..ghosts.niriss_ghosts import (
+    determine_ghost_stamp_filename,
+    get_ghost,
+    source_mags_to_ghost_mags,
+)
 from ..logging import logging_functions
 from ..reference_files import crds_tools
 from ..utils import backgrounds
 from ..utils import rotations, polynomial, read_siaf_table, utils
 from ..utils import set_telescope_pointing_separated as set_telescope_pointing
 from ..utils import siaf_interface, file_io
-from ..utils.constants import CRDS_FILE_TYPES, MEAN_GAIN_VALUES, SERSIC_FRACTIONAL_SIGNAL, \
-                              SEGMENTATION_MIN_SIGNAL_RATE, SUPPORTED_SEGMENTATION_THRESHOLD_UNITS, \
-                              LOG_CONFIG_FILENAME, STANDARD_LOGFILE_NAME, TSO_MODES, NIRISS_GHOST_GAP_FILE, \
-                              NIRISS_GHOST_GAP_URL, NIRCAM_SW_GRISMTS_APERTURES, NIRCAM_LW_GRISMTS_APERTURES, \
-                              DISPERSED_MODES
+from ..utils.constants import (
+    CRDS_FILE_TYPES,
+    MEAN_GAIN_VALUES,
+    SERSIC_FRACTIONAL_SIGNAL,
+    SEGMENTATION_MIN_SIGNAL_RATE,
+    SUPPORTED_SEGMENTATION_THRESHOLD_UNITS,
+    LOG_CONFIG_FILENAME,
+    STANDARD_LOGFILE_NAME,
+    TSO_MODES,
+    NIRISS_GHOST_GAP_FILE,
+    NIRISS_GHOST_GAP_URL,
+    NIRCAM_SW_GRISMTS_APERTURES,
+    NIRCAM_LW_GRISMTS_APERTURES,
+    DISPERSED_MODES,
+)
 from ..utils.flux_cal import fluxcal_info, sersic_fractional_radius, sersic_total_signal
 from ..utils.timer import Timer
 from ..psf.psf_selection import get_gridded_psf_library, get_psf_wings
 from mirage.utils.file_splitting import find_file_splits, SplitFileMetaData
-from ..psf.segment_psfs import (get_gridded_segment_psf_library_list,
-                                get_segment_offset, get_segment_library_list)
+from ..psf.segment_psfs import (
+    get_gridded_segment_psf_library_list,
+    get_segment_offset,
+    get_segment_library_list,
+)
 
 
-INST_LIST = ['nircam', 'niriss', 'fgs']
-MODES = {'nircam': ["imaging", "ts_imaging", "wfss", "ts_grism"],
-         'niriss': ["imaging", "ami", "pom", "wfss"],
-         'fgs': ["imaging"]}
-TRACKING_LIST = ['sidereal', 'non-sidereal']
+INST_LIST = ["nircam", "niriss", "fgs"]
+MODES = {
+    "nircam": ["imaging", "ts_imaging", "wfss", "ts_grism"],
+    "niriss": ["imaging", "ami", "pom", "wfss"],
+    "fgs": ["imaging"],
+}
+TRACKING_LIST = ["sidereal", "non-sidereal"]
 
-inst_abbrev = {'nircam': 'NRC',
-               'niriss': 'NIS',
-               'fgs': 'FGS'}
+inst_abbrev = {"nircam": "NRC", "niriss": "NIS", "fgs": "FGS"}
 
-ALLOWEDOUTPUTFORMATS = ['DMS']
-WFE_OPTIONS = ['predicted', 'requirements']
+ALLOWEDOUTPUTFORMATS = ["DMS"]
+WFE_OPTIONS = ["predicted", "requirements"]
 WFEGROUP_OPTIONS = np.arange(5)
 
 
-classdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../'))
-log_config_file = os.path.join(classdir, 'logging', LOG_CONFIG_FILENAME)
+classdir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
+log_config_file = os.path.join(classdir, "logging", LOG_CONFIG_FILENAME)
 logging_functions.create_logger(log_config_file, STANDARD_LOGFILE_NAME)
 
 
-class Catalog_seed():
+class Catalog_seed:
     def __init__(self, offline=False):
         """Instantiate the Catalog_seed class
 
@@ -101,12 +118,12 @@ class Catalog_seed():
 
         # Locate the module files, so that we know where to look
         # for config subdirectory
-        self.modpath = pkg_resources.resource_filename('mirage', '')
+        self.modpath = pkg_resources.resource_filename("mirage", "")
 
         # Get the location of the MIRAGE_DATA environment
         # variable, so we know where to look for darks, CR,
         # PSF files, etc later
-        self.env_var = 'MIRAGE_DATA'
+        self.env_var = "MIRAGE_DATA"
         datadir = utils.expand_environment_variable(self.env_var, offline=offline)
 
         # Check that CRDS-related environment variables are set correctly
@@ -119,11 +136,11 @@ class Catalog_seed():
         # and those of the expanded array. These are needed
         # mostly for WFSS observations, where the nominal output
         # array will not sit centered in the expanded output image.
-        self.coord_adjust = {'x': 1., 'xoffset': 0, 'y': 1., 'yoffset': 0}
+        self.coord_adjust = {"x": 1.0, "xoffset": 0, "y": 1.0, "yoffset": 0}
 
         # NIRCam rough noise values. Used to make educated guesses when
         # creating segmentation maps
-        self.single_ron = 6.  # e-/read
+        self.single_ron = 6.0  # e-/read
         self.grism_background = 0.25  # e-/sec
 
         # keep track of the maximum index number of sources
@@ -151,42 +168,64 @@ class Catalog_seed():
         self.readParameterFile()
 
         # Get the log caught up on what's already happened
-        self.logger.info('\n\nRunning catalog_seed_image..\n')
-        self.logger.info('Reading parameter file: {}\n'.format(self.paramfile))
-        self.logger.info('Original log file name: ./{}'.format(STANDARD_LOGFILE_NAME))
+        self.logger.info("\n\nRunning catalog_seed_image..\n")
+        self.logger.info("Reading parameter file: {}\n".format(self.paramfile))
+        self.logger.info("Original log file name: ./{}".format(STANDARD_LOGFILE_NAME))
 
         # Quick source catalog index number check. If there are multiple
         # catalogs, raise a warning if there are overlapping source
         # indicies. It may not be a big deal for imaging mode sims,
         # but for WFSS sims where there is an associated hdf5 file,
         # it would mean trouble.
-        used_cats = determine_used_cats(self.params['Inst']['mode'], self.params['simSignals'])
+        used_cats = determine_used_cats(
+            self.params["Inst"]["mode"], self.params["simSignals"]
+        )
         overlapping_indexes, self.max_source_index = catalog_index_check(used_cats)
         if overlapping_indexes:
             error_list = [key for key in used_cats]
-            raise ValueError(('At least two of the input source catalogs have overlapping index values. '
-                              'Each source across all catalogs should have a unique index value.\n'
-                              'Catalogs checked: {}'.format(error_list)))
+            raise ValueError(
+                (
+                    "At least two of the input source catalogs have overlapping index values. "
+                    "Each source across all catalogs should have a unique index value.\n"
+                    "Catalogs checked: {}".format(error_list)
+                )
+            )
 
         # Make filter/pupil values respect the filter/pupil wheel they are in
-        self.params['Readout']['filter'], self.params['Readout']['pupil'] = \
-            utils.normalize_filters(self.params['Inst']['instrument'], self.params['Readout']['filter'], self.params['Readout']['pupil'])
+        (
+            self.params["Readout"]["filter"],
+            self.params["Readout"]["pupil"],
+        ) = utils.normalize_filters(
+            self.params["Inst"]["instrument"],
+            self.params["Readout"]["filter"],
+            self.params["Readout"]["pupil"],
+        )
 
         # Create dictionary to use when looking in CRDS for reference files
         self.crds_dict = crds_tools.dict_from_yaml(self.params)
 
         # Expand param entries to full paths where appropriate
-        self.params = utils.full_paths(self.params, self.modpath, self.crds_dict, offline=self.offline)
+        self.params = utils.full_paths(
+            self.params, self.modpath, self.crds_dict, offline=self.offline
+        )
         self.filecheck()
-        self.basename = os.path.join(self.params['Output']['directory'],
-                                     self.params['Output']['file'][0:-5].split('/')[-1])
-        self.params['Output']['file'] = self.basename + self.params['Output']['file'][-5:]
-        self.subdict = utils.read_subarray_definition_file(self.params['Reffiles']['subarray_defs'])
+        self.basename = os.path.join(
+            self.params["Output"]["directory"],
+            self.params["Output"]["file"][0:-5].split("/")[-1],
+        )
+        self.params["Output"]["file"] = (
+            self.basename + self.params["Output"]["file"][-5:]
+        )
+        self.subdict = utils.read_subarray_definition_file(
+            self.params["Reffiles"]["subarray_defs"]
+        )
         self.check_params()
         self.params = utils.get_subarray_info(self.params, self.subdict)
         self.coord_transform = self.read_distortion_reffile()
-        self.expand_catalog_for_segments = bool(self.params['simSignals']['expand_catalog_for_segments'])
-        self.add_psf_wings = self.params['simSignals']['add_psf_wings']
+        self.expand_catalog_for_segments = bool(
+            self.params["simSignals"]["expand_catalog_for_segments"]
+        )
+        self.add_psf_wings = self.params["simSignals"]["add_psf_wings"]
 
         # Read in the transmission file so it can be used later
         self.prepare_transmission_file()
@@ -197,22 +236,35 @@ class Catalog_seed():
         # If the output is a direct image to be dispersed, expand the size
         # of the nominal FOV so the disperser can account for sources just
         # outside whose traces will fall into the FOV
-        if (self.params['Output']['grism_source_image']) or (self.params['Inst']['mode'] in ["pom"]):
+        if (self.params["Output"]["grism_source_image"]) or (
+            self.params["Inst"]["mode"] in ["pom"]
+        ):
             self.calcCoordAdjust()
 
         # Image dimensions
-        self.nominal_dims = np.array([self.subarray_bounds[3] - self.subarray_bounds[1] + 1,
-                                      self.subarray_bounds[2] - self.subarray_bounds[0] + 1])
+        self.nominal_dims = np.array(
+            [
+                self.subarray_bounds[3] - self.subarray_bounds[1] + 1,
+                self.subarray_bounds[2] - self.subarray_bounds[0] + 1,
+            ]
+        )
         self.output_dims = self.transmission_image.shape
-        self.logger.info('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')
-        self.logger.info('Seed image output dimensions (x, y) are: ({}, {})'.format(self.output_dims[1], self.output_dims[0]))
-        self.logger.info('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')
+        self.logger.info("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+        self.logger.info(
+            "Seed image output dimensions (x, y) are: ({}, {})".format(
+                self.output_dims[1], self.output_dims[0]
+            )
+        )
+        self.logger.info("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
 
         # calculate the exposure time of a single frame, based on the size of the subarray
-        self.frametime = utils.calc_frame_time(self.params['Inst']['instrument'],
-                                               self.params['Readout']['array_name'],
-                                               self.nominal_dims[1], self.nominal_dims[0],
-                                               self.params['Readout']['namp'])
+        self.frametime = utils.calc_frame_time(
+            self.params["Inst"]["instrument"],
+            self.params["Readout"]["array_name"],
+            self.nominal_dims[1],
+            self.nominal_dims[0],
+            self.params["Readout"]["namp"],
+        )
         self.logger.info("Frametime is {}".format(self.frametime))
 
         # Get information on the number of frames
@@ -221,33 +273,51 @@ class Catalog_seed():
         # If the total number of frames/pixels is larger than the file
         # size cap can handle, then we need to break the exposure up
         # into multiple chunks
-        frames_per_group = self.frames_per_integration / self.params['Readout']['ngroup']
-        if self.params['Inst']['mode'] in ['ts_imaging']:
-            split_seed, group_segment_indexes, integration_segment_indexes = find_file_splits(self.output_dims[1],
-                                                                                              self.output_dims[0],
-                                                                                              self.frames_per_integration,
-                                                                                              self.params['Readout']['nint'],
-                                                                                              frames_per_group=frames_per_group)
+        frames_per_group = (
+            self.frames_per_integration / self.params["Readout"]["ngroup"]
+        )
+        if self.params["Inst"]["mode"] in ["ts_imaging"]:
+            (
+                split_seed,
+                group_segment_indexes,
+                integration_segment_indexes,
+            ) = find_file_splits(
+                self.output_dims[1],
+                self.output_dims[0],
+                self.frames_per_integration,
+                self.params["Readout"]["nint"],
+                frames_per_group=frames_per_group,
+            )
 
             # If the file needs to be split, check to see what the splitting
             # would be in the case of groups rather than frames. This will
             # help align the split files between the seed image and the dark
             # object later (which is split by groups).
             if split_seed:
-                delta_index = integration_segment_indexes[1] - integration_segment_indexes[0]
-                forced_ints_per_file = int(self.frames_per_integration / self.params['Readout']['ngroup']) * delta_index
-                split_seed_g, self.group_segment_indexes_g, self.file_segment_indexes = find_file_splits(self.output_dims[1],
-                                                                                                    self.output_dims[0],
-                                                                                                    self.params['Readout']['ngroup'],
-                                                                                                    self.params['Readout']['nint'],
-                                                                                                    force_delta_int=forced_ints_per_file)
+                delta_index = (
+                    integration_segment_indexes[1] - integration_segment_indexes[0]
+                )
+                forced_ints_per_file = (
+                    int(self.frames_per_integration / self.params["Readout"]["ngroup"])
+                    * delta_index
+                )
+                (
+                    split_seed_g,
+                    self.group_segment_indexes_g,
+                    self.file_segment_indexes,
+                ) = find_file_splits(
+                    self.output_dims[1],
+                    self.output_dims[0],
+                    self.params["Readout"]["ngroup"],
+                    self.params["Readout"]["nint"],
+                    force_delta_int=forced_ints_per_file,
+                )
 
-
-                #print('\nOutputs:')
-                #print(split_seed, group_segment_indexes, integration_segment_indexes)
-                #print(split_seed_g, self.group_segment_indexes_g, self.file_segment_indexes)
-                #print(self.file_segment_indexes)
-                #print('')
+                # print('\nOutputs:')
+                # print(split_seed, group_segment_indexes, integration_segment_indexes)
+                # print(split_seed_g, self.group_segment_indexes_g, self.file_segment_indexes)
+                # print(self.file_segment_indexes)
+                # print('')
 
                 # In order to avoid the case of having a single integration
                 # in the final file, which leads to rate rather than rateints
@@ -255,10 +325,16 @@ class Catalog_seed():
                 # splitting indexes indicate the last split isn't a single
                 # integration
                 if len(self.file_segment_indexes) > 2:
-                    delta_int = self.file_segment_indexes[1:] - self.file_segment_indexes[0: -1]
+                    delta_int = (
+                        self.file_segment_indexes[1:] - self.file_segment_indexes[0:-1]
+                    )
                     if delta_int[-1] == 1 and delta_int[0] != 1:
                         self.file_segment_indexes[-2] -= 1
-                        self.logger.debug('Adjusted final seed to avoid single integration: {}'.format(self.file_segment_indexes))
+                        self.logger.debug(
+                            "Adjusted final seed to avoid single integration: {}".format(
+                                self.file_segment_indexes
+                            )
+                        )
 
                 # More adjustments related to segment numbers. We need to compare
                 # the integration indexes for the seed images vs those for the final
@@ -274,26 +350,32 @@ class Catalog_seed():
                 # associated with them.
                 segnum_check = []
                 for intnum in integration_segment_indexes[1:]:
-                    segnum_check.append(np.where(intnum <= self.file_segment_indexes)[0][0])
+                    segnum_check.append(
+                        np.where(intnum <= self.file_segment_indexes)[0][0]
+                    )
                 maxseg = max(segnum_check)
                 for i in range(1, maxseg + 1):
                     if i not in segnum_check:
-                        integration_segment_indexes = copy.deepcopy(self.file_segment_indexes)
+                        integration_segment_indexes = copy.deepcopy(
+                            self.file_segment_indexes
+                        )
 
             else:
                 self.file_segment_indexes = integration_segment_indexes
 
         else:
             split_seed = False
-            group_segment_indexes = [0, self.params['Readout']['ngroup']]
-            integration_segment_indexes = [0, self.params['Readout']['nint']]
+            group_segment_indexes = [0, self.params["Readout"]["ngroup"]]
+            integration_segment_indexes = [0, self.params["Readout"]["nint"]]
             self.file_segment_indexes = copy.deepcopy(integration_segment_indexes)
             self.total_seed_segments = 1
             self.segment_number = 1
             self.segment_part_number = 1
 
         self.total_seed_segments = len(self.file_segment_indexes) - 1
-        self.total_seed_segments_and_parts = (len(integration_segment_indexes) - 1) * (len(group_segment_indexes) - 1)
+        self.total_seed_segments_and_parts = (len(integration_segment_indexes) - 1) * (
+            len(group_segment_indexes) - 1
+        )
 
         # Read in the PSF library file corresponding to the detector and filter
         # For WFSS simulations, use the PSF libraries with the appropriate CLEAR element
@@ -301,20 +383,33 @@ class Catalog_seed():
 
         if not self.expand_catalog_for_segments:
             self.psf_library = get_gridded_psf_library(
-                self.params['Inst']['instrument'], self.detector, self.psf_filter, self.psf_pupil,
-                self.params['simSignals']['psfwfe'],
-                self.params['simSignals']['psfwfegroup'],
-                self.params['simSignals']['psfpath'])
-            self.psf_library_core_y_dim, self.psf_library_core_x_dim = self.psf_library.data.shape[-2:]
+                self.params["Inst"]["instrument"],
+                self.detector,
+                self.psf_filter,
+                self.psf_pupil,
+                self.params["simSignals"]["psfwfe"],
+                self.params["simSignals"]["psfwfegroup"],
+                self.params["simSignals"]["psfpath"],
+            )
+            (
+                self.psf_library_core_y_dim,
+                self.psf_library_core_x_dim,
+            ) = self.psf_library.data.shape[-2:]
             self.psf_library_oversamp = self.psf_library.oversampling
 
         # If reading in segment PSFs, use get_gridded_segment_psf_library_list
         # to get a list of photutils.griddedPSFModel objects
         else:
             self.psf_library = get_gridded_segment_psf_library_list(
-                self.params['Inst']['instrument'], self.detector, self.psf_filter,
-                self.params['simSignals']['psfpath'], pupilname=self.psf_pupil)
-            self.psf_library_core_y_dim, self.psf_library_core_x_dim = self.psf_library[0].data.shape[-2:]
+                self.params["Inst"]["instrument"],
+                self.detector,
+                self.psf_filter,
+                self.params["simSignals"]["psfpath"],
+                pupilname=self.psf_pupil,
+            )
+            self.psf_library_core_y_dim, self.psf_library_core_x_dim = self.psf_library[
+                0
+            ].data.shape[-2:]
             self.psf_library_oversamp = 1
 
         # Set the psf core dimensions to actually be 2 rows and columns
@@ -326,27 +421,46 @@ class Catalog_seed():
         # edge row or column in the evaluated array. So we do this to be
         # sure that we are evaluating the library with a slightly smaller
         # array than the array in the library.
-        self.psf_library_core_x_dim = np.int(self.psf_library_core_x_dim / self.psf_library_oversamp) - \
-            self.params['simSignals']['gridded_psf_library_row_padding']
-        self.psf_library_core_y_dim = np.int(self.psf_library_core_y_dim / self.psf_library_oversamp) - \
-            self.params['simSignals']['gridded_psf_library_row_padding']
+        self.psf_library_core_x_dim = (
+            np.int(self.psf_library_core_x_dim / self.psf_library_oversamp)
+            - self.params["simSignals"]["gridded_psf_library_row_padding"]
+        )
+        self.psf_library_core_y_dim = (
+            np.int(self.psf_library_core_y_dim / self.psf_library_oversamp)
+            - self.params["simSignals"]["gridded_psf_library_row_padding"]
+        )
 
         if self.add_psf_wings is True:
-            self.psf_wings = get_psf_wings(self.params['Inst']['instrument'], self.detector,
-                                           self.psf_filter, self.psf_pupil,
-                                           self.params['simSignals']['psfwfe'],
-                                           self.params['simSignals']['psfwfegroup'],
-                                           os.path.join(self.params['simSignals']['psfpath'], 'psf_wings'))
+            self.psf_wings = get_psf_wings(
+                self.params["Inst"]["instrument"],
+                self.detector,
+                self.psf_filter,
+                self.psf_pupil,
+                self.params["simSignals"]["psfwfe"],
+                self.params["simSignals"]["psfwfegroup"],
+                os.path.join(self.params["simSignals"]["psfpath"], "psf_wings"),
+            )
 
             # Read in the file that defines PSF array sizes based on magnitude
-            self.psf_wing_sizes = ascii.read(self.params['simSignals']['psf_wing_threshold_file'])
+            self.psf_wing_sizes = ascii.read(
+                self.params["simSignals"]["psf_wing_threshold_file"]
+            )
             max_wing_size = self.psf_wings.shape[0]
-            too_large = np.where(np.array(self.psf_wing_sizes['number_of_pixels']) > max_wing_size)[0]
+            too_large = np.where(
+                np.array(self.psf_wing_sizes["number_of_pixels"]) > max_wing_size
+            )[0]
             if len(too_large) > 0:
-                self.logger.info(('Some PSF sizes in {} are larger than the PSF library file dimensions. '
-                                  'Resetting these values in the table to be equal to the PSF dimensions'
-                                  .format(os.path.basename(self.params['simSignals']['psf_wing_threshold_file']))))
-                self.psf_wing_sizes['number_of_pixels'][too_large] = max_wing_size
+                self.logger.info(
+                    (
+                        "Some PSF sizes in {} are larger than the PSF library file dimensions. "
+                        "Resetting these values in the table to be equal to the PSF dimensions".format(
+                            os.path.basename(
+                                self.params["simSignals"]["psf_wing_threshold_file"]
+                            )
+                        )
+                    )
+                )
+                self.psf_wing_sizes["number_of_pixels"][too_large] = max_wing_size
 
         # Prepare for saving seed images. Set default values for the
         # keywords that must appear in the headers of any seed image
@@ -359,43 +473,56 @@ class Catalog_seed():
         self.segment_number = 1
         self.segment_part_number = 1
         self.segment_frames = self.frames_per_integration  # self.seedimage.shape[1]
-        self.segment_ints = self.params['Readout']['nint']  # self.seedimage.shape[0]
+        self.segment_ints = self.params["Readout"]["nint"]  # self.seedimage.shape[0]
         self.segment_frame_start_number = 0
         self.segment_int_start_number = 0
         self.part_int_start_number = 0
         self.part_frame_start_number = 0
 
         # For imaging mode, generate the countrate image using the catalogs
-        if self.params['Telescope']['tracking'].lower() != 'non-sidereal':
-            self.logger.info('Creating signal rate image of sidereal synthetic inputs.')
+        if self.params["Telescope"]["tracking"].lower() != "non-sidereal":
+            self.logger.info("Creating signal rate image of sidereal synthetic inputs.")
             self.seedimage, self.seed_segmap = self.create_sidereal_image()
-            outapp = ''
+            outapp = ""
 
         # If we are tracking a non-sidereal target, then
         # everything in the catalogs needs to be streaked across
         # the detector
-        if self.params['Telescope']['tracking'].lower() == 'non-sidereal':
-            self.logger.info('Creating signal ramp of non-sidereal synthetic inputs')
+        if self.params["Telescope"]["tracking"].lower() == "non-sidereal":
+            self.logger.info("Creating signal ramp of non-sidereal synthetic inputs")
             self.seedimage, self.seed_segmap = self.non_sidereal_seed()
-            outapp = '_nonsidereal_target'
+            outapp = "_nonsidereal_target"
 
         # If non-sidereal targets are requested (KBOs, asteroids, etc,
         # create a RAPID integration which includes those targets
         mov_targs_ramps = []
-        if (self.runStep['movingTargets'] | self.runStep['movingTargetsSersic']
-                | self.runStep['movingTargetsExtended']):
-            self.logger.info(("Creating signal ramp of sources that are moving with "
-                              "respect to telescope tracking."))
+        if (
+            self.runStep["movingTargets"]
+            | self.runStep["movingTargetsSersic"]
+            | self.runStep["movingTargetsExtended"]
+        ):
+            self.logger.info(
+                (
+                    "Creating signal ramp of sources that are moving with "
+                    "respect to telescope tracking."
+                )
+            )
             trailed_ramp, trailed_segmap = self.make_trailed_ramp()
-            outapp += '_trailed_sources'
+            outapp += "_trailed_sources"
 
             # Now we need to expand frameimage into a ramp
             # so we can add the trailed objects
-            self.logger.info('Combining trailed object ramp with that containing tracked targets')
-            if self.params['Telescope']['tracking'].lower() != 'non-sidereal':
-                self.seedimage = self.combineSimulatedDataSources('countrate', self.seedimage, trailed_ramp)
+            self.logger.info(
+                "Combining trailed object ramp with that containing tracked targets"
+            )
+            if self.params["Telescope"]["tracking"].lower() != "non-sidereal":
+                self.seedimage = self.combineSimulatedDataSources(
+                    "countrate", self.seedimage, trailed_ramp
+                )
             else:
-                self.seedimage = self.combineSimulatedDataSources('ramp', self.seedimage, trailed_ramp)
+                self.seedimage = self.combineSimulatedDataSources(
+                    "ramp", self.seedimage, trailed_ramp
+                )
             self.seed_segmap += trailed_segmap
 
         # MASK IMAGE
@@ -403,49 +530,60 @@ class Catalog_seed():
         # Initially this includes only the reference pixels
         # Keep the mask image equal to the true subarray size, since this
         # won't be used to make a requested grism source image
-        if self.params['Inst']['mode'] not in ['wfss', 'ts_grism']:
+        if self.params["Inst"]["mode"] not in ["wfss", "ts_grism"]:
             self.maskimage = np.zeros((self.ffsize, self.ffsize), dtype=np.int)
-            self.maskimage[4:self.ffsize-4, 4:self.ffsize-4] = 1.
+            self.maskimage[4 : self.ffsize - 4, 4 : self.ffsize - 4] = 1.0
 
             # crop the mask to match the requested output array
-            ap_suffix = self.params['Readout']['array_name'].split('_')[1]
-            if ap_suffix not in ['FULL', 'CEN']:
-                self.maskimage = self.maskimage[self.subarray_bounds[1]:self.subarray_bounds[3] + 1,
-                                                self.subarray_bounds[0]:self.subarray_bounds[2] + 1]
+            ap_suffix = self.params["Readout"]["array_name"].split("_")[1]
+            if ap_suffix not in ["FULL", "CEN"]:
+                self.maskimage = self.maskimage[
+                    self.subarray_bounds[1] : self.subarray_bounds[3] + 1,
+                    self.subarray_bounds[0] : self.subarray_bounds[2] + 1,
+                ]
 
         # TSO imaging mode here
-        if self.params['Inst']['mode'] in ['ts_imaging']:
-            self.create_tso_seed(split_seed=split_seed, integration_splits=integration_segment_indexes,
-                                 frame_splits=group_segment_indexes)
+        if self.params["Inst"]["mode"] in ["ts_imaging"]:
+            self.create_tso_seed(
+                split_seed=split_seed,
+                integration_splits=integration_segment_indexes,
+                frame_splits=group_segment_indexes,
+            )
         else:
 
             # For seed images to be dispersed in WFSS mode,
             # embed the seed image in a full frame array. The disperser
             # tool does not work on subarrays
-            aperture_suffix = self.params['Readout']['array_name'].split('_')[-1]
-            #if ((self.params['Inst']['mode'] in ['wfss', 'ts_grism']) & \
+            aperture_suffix = self.params["Readout"]["array_name"].split("_")[-1]
+            # if ((self.params['Inst']['mode'] in ['wfss', 'ts_grism']) & \
             #   (aperture_suffix not in ['FULL', 'CEN'])):
             #    self.seedimage, self.seed_segmap = self.pad_wfss_subarray(self.seedimage, self.seed_segmap)
 
             # For NIRISS POM data, extract the central 2048x2048
-            if self.params['Inst']['mode'] in ["pom"]:
+            if self.params["Inst"]["mode"] in ["pom"]:
                 # Expose the full-sized pom seed image
-                self.logger.info('Multiplying seed by POM transmission image.')
+                self.logger.info("Multiplying seed by POM transmission image.")
                 self.seedimage *= self.transmission_image
                 self.pom_seed = copy.deepcopy(self.seedimage)
                 self.pom_segmap = copy.deepcopy(self.seed_segmap)
 
                 # Save the full-sized pom seed image to a file
-                if 'clear' in self.params['Readout']['filter'].lower():
-                    usefilt = self.params['Readout']['pupil']
+                if "clear" in self.params["Readout"]["filter"].lower():
+                    usefilt = self.params["Readout"]["pupil"]
                 else:
-                    usefilt = self.params['Readout']['filter']
-                self.pom_file = os.path.join(self.basename + '_' + usefilt + '_pom_seed_image.fits')
+                    usefilt = self.params["Readout"]["filter"]
+                self.pom_file = os.path.join(
+                    self.basename + "_" + usefilt + "_pom_seed_image.fits"
+                )
                 self.saveSeedImage(self.pom_seed, self.pom_segmap, self.pom_file)
-                self.logger.info('Full POM seed image saved as: {}'.format(self.pom_file))
-                self.seedimage, self.seed_segmap = self.extract_full_from_pom(self.seedimage, self.seed_segmap)
+                self.logger.info(
+                    "Full POM seed image saved as: {}".format(self.pom_file)
+                )
+                self.seedimage, self.seed_segmap = self.extract_full_from_pom(
+                    self.seedimage, self.seed_segmap
+                )
 
-            if self.params['Inst']['mode'] not in ['wfss', 'ts_grism']:
+            if self.params["Inst"]["mode"] not in ["wfss", "ts_grism"]:
                 # Multiply the mask by the seed image and segmentation map in
                 # order to reflect the fact that reference pixels have no signal
                 # from external sources. Seed images to be dispersed do not have
@@ -455,23 +593,30 @@ class Catalog_seed():
 
             # For data that will not be dispersed, multiply by the transmission image
             # pom data have already been multiplied by the transmission image above
-            if self.params['Inst']['mode'] not in ['wfss', 'ts_grism', 'pom']:
-                self.logger.info('Multiplying seed by POM transmission image.')
+            if self.params["Inst"]["mode"] not in ["wfss", "ts_grism", "pom"]:
+                self.logger.info("Multiplying seed by POM transmission image.")
                 self.seedimage *= self.transmission_image
 
             # Save the combined static + moving targets ramp
-            if self.params['Inst']['instrument'].lower() != 'fgs':
-                self.seed_file = '{}_{}_{}_final_seed_image.fits'.format(self.basename, self.params['Readout']['filter'],
-                                                                         self.params['Readout']['pupil'])
+            if self.params["Inst"]["instrument"].lower() != "fgs":
+                self.seed_file = "{}_{}_{}_final_seed_image.fits".format(
+                    self.basename,
+                    self.params["Readout"]["filter"],
+                    self.params["Readout"]["pupil"],
+                )
             else:
-                self.seed_file = '{}_final_seed_image.fits'.format(self.basename)
+                self.seed_file = "{}_final_seed_image.fits".format(self.basename)
 
             # Define self.seed_files for non-TSO observations
             if len(self.seed_files) == 0:
                 self.seed_files = [self.seed_file]
 
             self.saveSeedImage(self.seedimage, self.seed_segmap, self.seed_file)
-            self.logger.info("Final seed image and segmentation map saved as {}".format(self.seed_file))
+            self.logger.info(
+                "Final seed image and segmentation map saved as {}".format(
+                    self.seed_file
+                )
+            )
             self.logger.info("Seed image, segmentation map, and metadata available as:")
             self.logger.info("self.seedimage, self.seed_segmap, self.seedinfo.\n\n")
 
@@ -486,9 +631,12 @@ class Catalog_seed():
         # dark_prep will be run next, dark_prep will re-initialize the
         # logger with the same handler and file destination, so it will
         # append to the original log file created here.
-        logging_functions.move_logfile_to_standard_location(self.paramfile, STANDARD_LOGFILE_NAME,
-                                                            yaml_outdir=self.params['Output']['directory'],
-                                                            log_type='catalog_seed')
+        logging_functions.move_logfile_to_standard_location(
+            self.paramfile,
+            STANDARD_LOGFILE_NAME,
+            yaml_outdir=self.params["Output"]["directory"],
+            log_type="catalog_seed",
+        )
 
     def create_tso_seed(self, split_seed=False, integration_splits=-1, frame_splits=-1):
         """Create a seed image for time series sources. Just like for moving
@@ -519,8 +667,11 @@ class Catalog_seed():
         """
         # Read in the TSO catalog. This is only for TSO mode, not
         # grism TSO, which will need a different catalog format.
-        if self.params['Inst']['mode'].lower() == 'ts_imaging':
-            tso_cat, _ = self.get_point_source_list(self.params['simSignals']['tso_imaging_catalog'], source_type='ts_imaging')
+        if self.params["Inst"]["mode"].lower() == "ts_imaging":
+            tso_cat, _ = self.get_point_source_list(
+                self.params["simSignals"]["tso_imaging_catalog"],
+                source_type="ts_imaging",
+            )
 
             # Create lists of seed images and segmentation maps for all
             # TSO objects
@@ -532,7 +683,7 @@ class Catalog_seed():
                 # Otherwise the index number will be modified to be one
                 # greater than the max value after working on the background
                 # sources
-                source['index'] = TSO_GRISM_INDEX
+                source["index"] = TSO_GRISM_INDEX
 
                 # Place row in an empty table
                 t = tso_cat[:0].copy()
@@ -550,17 +701,25 @@ class Catalog_seed():
                 # TSO source, let's assume that the dataset number in the
                 # lightcurve file is always 1. This seems easiest for the
                 # users when creating the file.
-                lightcurve = tso.read_lightcurve(source['lightcurve_file'], 1)
+                lightcurve = tso.read_lightcurve(source["lightcurve_file"], 1)
                 tso_lightcurves.append(lightcurve)
 
             if not split_seed:
                 # Add the TSO sources to the seed image and segmentation map
-                seed, segmap = tso.add_tso_sources(self.seedimage, self.seed_segmap, tso_seeds, tso_segs,
-                                                   tso_lightcurves, self.frametime, self.total_frames,
-                                                   self.total_frames, self.frames_per_integration,
-                                                   self.params['Readout']['nint'],
-                                                   self.params['Readout']['resets_bet_ints'],
-                                                   samples_per_frametime=5)
+                seed, segmap = tso.add_tso_sources(
+                    self.seedimage,
+                    self.seed_segmap,
+                    tso_seeds,
+                    tso_segs,
+                    tso_lightcurves,
+                    self.frametime,
+                    self.total_frames,
+                    self.total_frames,
+                    self.frames_per_integration,
+                    self.params["Readout"]["nint"],
+                    self.params["Readout"]["resets_bet_ints"],
+                    samples_per_frametime=5,
+                )
 
                 self.segment_number = 1
                 self.segment_part_number = 1
@@ -576,27 +735,43 @@ class Catalog_seed():
                 segmap *= self.maskimage
 
                 # Multiply by the transmission image
-                self.logger.info('Multiplying seed by POM transmission image.')
+                self.logger.info("Multiplying seed by POM transmission image.")
                 seed *= self.transmission_image
 
                 # Save the seed image segment to a file
                 if self.total_seed_segments_and_parts == 1:
-                    self.seed_file = '{}_{}_{}_seed_image.fits'.format(self.basename, self.params['Readout']['filter'],
-                                                                       self.params['Readout']['pupil'])
+                    self.seed_file = "{}_{}_{}_seed_image.fits".format(
+                        self.basename,
+                        self.params["Readout"]["filter"],
+                        self.params["Readout"]["pupil"],
+                    )
                 else:
-                    raise ValueError("ERROR: TSO seed file should not be split at this point.")
+                    raise ValueError(
+                        "ERROR: TSO seed file should not be split at this point."
+                    )
                     seg_string = str(self.segment_number).zfill(3)
                     part_string = str(self.segment_part_number).zfill(3)
-                    self.seed_file = '{}_{}_{}_seg{}_part{}_seed_image.fits'.format(self.basename, self.params['Readout']['filter'],
-                                                                                    self.params['Readout']['pupil'], seg_string, part_string)
+                    self.seed_file = "{}_{}_{}_seg{}_part{}_seed_image.fits".format(
+                        self.basename,
+                        self.params["Readout"]["filter"],
+                        self.params["Readout"]["pupil"],
+                        seg_string,
+                        part_string,
+                    )
 
                 self.seed_files.append(self.seed_file)
                 self.saveSeedImage(seed, segmap, self.seed_file)
 
             else:
-                split_meta = SplitFileMetaData(integration_splits, frame_splits,
-                                               self.file_segment_indexes, self.group_segment_indexes_g,
-                                               self.frames_per_integration, self.frames_per_group, self.frametime)
+                split_meta = SplitFileMetaData(
+                    integration_splits,
+                    frame_splits,
+                    self.file_segment_indexes,
+                    self.group_segment_indexes_g,
+                    self.frames_per_integration,
+                    self.frames_per_group,
+                    self.frametime,
+                )
 
                 counter = 0
                 i = 1
@@ -610,16 +785,22 @@ class Catalog_seed():
                         total_ints = split_meta.total_ints[counter]
                         time_start = split_meta.time_start[counter]
                         frame_start = split_meta.frame_start[counter]
-                        seed, segmap = tso.add_tso_sources(self.seedimage, self.seed_segmap,
-                                                                           tso_seeds, tso_segs,
-                                                                           tso_lightcurves, self.frametime,
-                                                                           total_frames, self.total_frames,
-                                                                           self.frames_per_integration,
-                                                                           total_ints,
-                                                                           self.params['Readout']['resets_bet_ints'],
-                                                                           starting_time=time_start,
-                                                                           starting_frame=frame_start,
-                                                                           samples_per_frametime=5)
+                        seed, segmap = tso.add_tso_sources(
+                            self.seedimage,
+                            self.seed_segmap,
+                            tso_seeds,
+                            tso_segs,
+                            tso_lightcurves,
+                            self.frametime,
+                            total_frames,
+                            self.total_frames,
+                            self.frames_per_integration,
+                            total_ints,
+                            self.params["Readout"]["resets_bet_ints"],
+                            starting_time=time_start,
+                            starting_frame=frame_start,
+                            samples_per_frametime=5,
+                        )
                         seed += previous_frame
                         previous_frame = seed[-1, -1, :, :]
 
@@ -628,30 +809,51 @@ class Catalog_seed():
                         segmap *= self.maskimage
 
                         # Multiply by the transmission image
-                        self.logger.info('Multiplying seed by POM transmission image.')
+                        self.logger.info("Multiplying seed by POM transmission image.")
                         seed *= self.transmission_image
 
                         # Get metadata values to save in seed image header
                         self.segment_number = split_meta.segment_number[counter]
                         self.segment_ints = split_meta.segment_ints[counter]
                         self.segment_frames = split_meta.segment_frames[counter]
-                        self.segment_part_number = split_meta.segment_part_number[counter]
-                        self.segment_frame_start_number = split_meta.segment_frame_start_number[counter]
-                        self.segment_int_start_number = split_meta.segment_int_start_number[counter]
-                        self.part_int_start_number = split_meta.part_int_start_number[counter]
-                        self.part_frame_start_number = split_meta.part_frame_start_number[counter]
+                        self.segment_part_number = split_meta.segment_part_number[
+                            counter
+                        ]
+                        self.segment_frame_start_number = (
+                            split_meta.segment_frame_start_number[counter]
+                        )
+                        self.segment_int_start_number = (
+                            split_meta.segment_int_start_number[counter]
+                        )
+                        self.part_int_start_number = split_meta.part_int_start_number[
+                            counter
+                        ]
+                        self.part_frame_start_number = (
+                            split_meta.part_frame_start_number[counter]
+                        )
                         counter += 1
 
                         # Save the seed image segment to a file
-                        self.logger.debug('\n\n\nTotal_seed_segments_and_parts: {}'.format(self.total_seed_segments_and_parts))
+                        self.logger.debug(
+                            "\n\n\nTotal_seed_segments_and_parts: {}".format(
+                                self.total_seed_segments_and_parts
+                            )
+                        )
                         seg_string = str(self.segment_number).zfill(3)
                         part_string = str(self.segment_part_number).zfill(3)
-                        self.seed_file = '{}_{}_{}_seg{}_part{}_seed_image.fits'.format(self.basename, self.params['Readout']['filter'],
-                                                                                        self.params['Readout']['pupil'], seg_string, part_string)
+                        self.seed_file = "{}_{}_{}_seg{}_part{}_seed_image.fits".format(
+                            self.basename,
+                            self.params["Readout"]["filter"],
+                            self.params["Readout"]["pupil"],
+                            seg_string,
+                            part_string,
+                        )
 
                         self.saveSeedImage(seed, segmap, self.seed_file)
                         self.seed_files.append(self.seed_file)
-                        self.logger.info('Adding file {} to self.seed_files\n'.format(self.seed_file))
+                        self.logger.info(
+                            "Adding file {} to self.seed_files\n".format(self.seed_file)
+                        )
                         j += 1
 
                     i += 1
@@ -659,17 +861,19 @@ class Catalog_seed():
             self.seedimage = seed
             self.seed_segmap = segmap
         else:
-            raise ValueError('Grism TSO simulations should be done with grism_tso_simulator.py!')
+            raise ValueError(
+                "Grism TSO simulations should be done with grism_tso_simulator.py!"
+            )
 
     def get_frame_count_info(self):
         """Calculate information on the number of frames per group and
         per integration
         """
-        numints = self.params['Readout']['nint']
-        numgroups = self.params['Readout']['ngroup']
-        numframes = self.params['Readout']['nframe']
-        numskips = self.params['Readout']['nskip']
-        numresets = self.params['Readout']['resets_bet_ints']
+        numints = self.params["Readout"]["nint"]
+        numgroups = self.params["Readout"]["ngroup"]
+        numframes = self.params["Readout"]["nframe"]
+        numskips = self.params["Readout"]["nskip"]
+        numresets = self.params["Readout"]["resets_bet_ints"]
 
         self.frames_per_group = numframes + numskips
         self.frames_per_integration = numgroups * self.frames_per_group
@@ -679,10 +883,10 @@ class Catalog_seed():
             # Frames for all integrations
             self.total_frames *= numints
             # Add the resets for all but the first integration
-            self.total_frames += (numresets * (numints - 1))
+            self.total_frames += numresets * (numints - 1)
 
     def extract_full_from_pom(self, seedimage, seed_segmap):
-        """ Given the seed image and segmentation images for the NIRISS POM field of view,
+        """Given the seed image and segmentation images for the NIRISS POM field of view,
         extract the central 2048x2048 pixel area where the detector sits.  The routine is only
         called when the mode is "pom".  The mode is set to "imaging" in these routine, as after
         the routine is called the subsequent results are the same as when the mode is set to
@@ -703,10 +907,18 @@ class Catalog_seed():
         """
         # For the NIRISS POM mode, extact the central 2048x2048 pixels for the
         # ramp simulation.  Set the mode back to "imaging".
-        newseedimage = np.copy(seedimage[self.coord_adjust['yoffset']:self.coord_adjust['yoffset']+2048,
-                                         self.coord_adjust['xoffset']:self.coord_adjust['xoffset']+2048])
-        newseed_segmap = np.copy(seed_segmap[self.coord_adjust['yoffset']:self.coord_adjust['yoffset']+2048,
-                                             self.coord_adjust['xoffset']:self.coord_adjust['xoffset']+2048])
+        newseedimage = np.copy(
+            seedimage[
+                self.coord_adjust["yoffset"] : self.coord_adjust["yoffset"] + 2048,
+                self.coord_adjust["xoffset"] : self.coord_adjust["xoffset"] + 2048,
+            ]
+        )
+        newseed_segmap = np.copy(
+            seed_segmap[
+                self.coord_adjust["yoffset"] : self.coord_adjust["yoffset"] + 2048,
+                self.coord_adjust["xoffset"] : self.coord_adjust["xoffset"] + 2048,
+            ]
+        )
         return newseedimage, newseed_segmap
 
     def add_detector_to_zeropoints(self, detector):
@@ -758,28 +970,28 @@ class Catalog_seed():
         to full frame images
         """
         gy, gx = self.transmission_image.shape
-        self.grism_direct_factor_x = gx / 2048.
-        self.grism_direct_factor_y = gy / 2048.
+        self.grism_direct_factor_x = gx / 2048.0
+        self.grism_direct_factor_y = gy / 2048.0
 
     def prepare_psf_entries(self):
         """Get the correct filter and pupil values to use when searching
         for gridded psf libraries
         """
-        self.psf_pupil = self.params['Readout']['pupil']
-        self.psf_filter = self.params['Readout']['filter']
-        if self.params['Readout']['pupil'].lower() in ['grismr', 'grismc']:
-            self.psf_pupil = 'CLEAR'
-        if self.params['Readout']['filter'].lower() in ['gr150r', 'gr150c']:
-            self.psf_filter = 'CLEAR'
+        self.psf_pupil = self.params["Readout"]["pupil"]
+        self.psf_filter = self.params["Readout"]["filter"]
+        if self.params["Readout"]["pupil"].lower() in ["grismr", "grismc"]:
+            self.psf_pupil = "CLEAR"
+        if self.params["Readout"]["filter"].lower() in ["gr150r", "gr150c"]:
+            self.psf_filter = "CLEAR"
 
     def prepare_transmission_file(self):
         """Read in the transmission file and get into the correct shape in
         order to apply it to the seed image
         """
-        filename = self.params['Reffiles']['transmission']
+        filename = self.params["Reffiles"]["transmission"]
 
         if isinstance(filename, str):
-            if filename.lower() == 'none':
+            if filename.lower() == "none":
                 filename = None
 
         if filename is not None:
@@ -787,50 +999,73 @@ class Catalog_seed():
             try:
                 transmission, header = fits.getdata(filename, header=True)
             except:
-                raise IOError('WARNING: unable to read in {}'.format(filename))
+                raise IOError("WARNING: unable to read in {}".format(filename))
         else:
-            self.logger.info(('No transmission file given. Assuming full transmission for all pixels, '
-                              'not including flat field effects. (no e.g. occulters blocking any pixels).'))
-            if self.params['Inst']['mode'].lower() in ['imaging', 'ami', 'ts_imaging']:
+            self.logger.info(
+                (
+                    "No transmission file given. Assuming full transmission for all pixels, "
+                    "not including flat field effects. (no e.g. occulters blocking any pixels)."
+                )
+            )
+            if self.params["Inst"]["mode"].lower() in ["imaging", "ami", "ts_imaging"]:
                 transmission = np.ones((2048, 2048))
-                header = {'NOMXSTRT': 0, 'NOMYSTRT': 0}
-            elif self.params['Inst']['mode'].lower() == 'pom':
+                header = {"NOMXSTRT": 0, "NOMYSTRT": 0}
+            elif self.params["Inst"]["mode"].lower() == "pom":
                 # For pom mode, we treat the situation similar to imaging
                 # mode, but use a larger array of 1s, so that we can create
                 # a larger seed image
                 transmission = np.ones((2322, 2322))
-                header = {'NOMXSTRT': 137, 'NOMYSTRT': 137}
+                header = {"NOMXSTRT": 137, "NOMYSTRT": 137}
             else:
-                raise ValueError(('POM transmission file is None, but the observing mode is not '
-                                  '"imaging" or "pom". Not sure what to do for POM transmission.'))
+                raise ValueError(
+                    (
+                        "POM transmission file is None, but the observing mode is not "
+                        '"imaging" or "pom". Not sure what to do for POM transmission.'
+                    )
+                )
 
         yd, xd = transmission.shape
 
         # Get the coordinates in the transmission file that correspond to (0,0)
         # on the detector (full frame aperture)
-        self.trans_ff_xmin = int(header['NOMXSTRT'])
-        self.trans_ff_ymin = int(header['NOMYSTRT'])
+        self.trans_ff_xmin = int(header["NOMXSTRT"])
+        self.trans_ff_ymin = int(header["NOMYSTRT"])
 
         # Check that the transmission image contains the entire detector
-        if ((xd < 2048) or (yd < 2048)):
-            raise ValueError("Transmission image is not large enough to contain the entire detector.")
-        if (((self.trans_ff_xmin + 2048) > xd) or ((self.trans_ff_ymin + 2048) > yd)):
-            raise ValueError(("NOMXSTRT, NOMYSTRT in transmission image indicate the entire detector is "
-                              "not contained in the image."))
+        if (xd < 2048) or (yd < 2048):
+            raise ValueError(
+                "Transmission image is not large enough to contain the entire detector."
+            )
+        if ((self.trans_ff_xmin + 2048) > xd) or ((self.trans_ff_ymin + 2048) > yd):
+            raise ValueError(
+                (
+                    "NOMXSTRT, NOMYSTRT in transmission image indicate the entire detector is "
+                    "not contained in the image."
+                )
+            )
 
-        if (self.params['Output']['grism_source_image']) or (self.params['Inst']['mode'] in ["pom", "wfss", "ts_grism"]):
+        if (self.params["Output"]["grism_source_image"]) or (
+            self.params["Inst"]["mode"] in ["pom", "wfss", "ts_grism"]
+        ):
             pass
         else:
             # Imaging modes here. Cut the transmission file down to full frame,
             # and then down to the requested aperture
-            transmission = transmission[self.trans_ff_ymin: self.trans_ff_ymin+2048, self.trans_ff_xmin: self.trans_ff_xmin+2048]
+            transmission = transmission[
+                self.trans_ff_ymin : self.trans_ff_ymin + 2048,
+                self.trans_ff_xmin : self.trans_ff_xmin + 2048,
+            ]
 
             # Crop to expected subarray
             try:
-                transmission = transmission[self.subarray_bounds[1]:self.subarray_bounds[3]+1,
-                                            self.subarray_bounds[0]:self.subarray_bounds[2]+1]
+                transmission = transmission[
+                    self.subarray_bounds[1] : self.subarray_bounds[3] + 1,
+                    self.subarray_bounds[0] : self.subarray_bounds[2] + 1,
+                ]
             except:
-                raise ValueError("Unable to crop transmission image to expected subarray.")
+                raise ValueError(
+                    "Unable to crop transmission image to expected subarray."
+                )
 
         self.transmission_image = transmission
 
@@ -861,18 +1096,31 @@ class Catalog_seed():
 
         extradiffy = ffextray - subextray
         extradiffx = ffextrax - subextrax
-        exbounds = [extradiffx, extradiffy, extradiffx+seeddim[-1]-1, extradiffy+seeddim[-2]-1]
+        exbounds = [
+            extradiffx,
+            extradiffy,
+            extradiffx + seeddim[-1] - 1,
+            extradiffy + seeddim[-2] - 1,
+        ]
 
         if len(seeddim) == 2:
             padded_seed = np.zeros((ny, nx))
-            padded_seed[exbounds[1]:exbounds[3] + 1, exbounds[0]:exbounds[2] + 1] = seed
+            padded_seed[
+                exbounds[1] : exbounds[3] + 1, exbounds[0] : exbounds[2] + 1
+            ] = seed
             padded_seg = np.zeros((ny, nx), dtype=np.int)
-            padded_seg[exbounds[1]:exbounds[3] + 1, exbounds[0]:exbounds[2] + 1] = seg
+            padded_seg[
+                exbounds[1] : exbounds[3] + 1, exbounds[0] : exbounds[2] + 1
+            ] = seg
         elif len(seeddim) == 4:
             padded_seed = np.zeros((seeddim[0], seeddim[1], ny, nx))
-            padded_seed[:, :, exbounds[1]:exbounds[3] + 1, exbounds[0]:exbounds[2] + 1] = seed
+            padded_seed[
+                :, :, exbounds[1] : exbounds[3] + 1, exbounds[0] : exbounds[2] + 1
+            ] = seed
             padded_seg = np.zeros((seeddim[0], seeddim[1], ny, nx), dtype=np.int)
-            padded_seg[:, :, exbounds[1]:exbounds[3] + 1, exbounds[0]:exbounds[2] + 1] = seg
+            padded_seg[
+                :, :, exbounds[1] : exbounds[3] + 1, exbounds[0] : exbounds[2] + 1
+            ] = seg
         else:
             raise ValueError("Seed image is not 2D or 4D. It should be.")
         return padded_seed, padded_seg
@@ -895,126 +1143,136 @@ class Catalog_seed():
         """
         arrayshape = seed_image.shape
         if len(arrayshape) == 2:
-            units = 'ADU/sec'
+            units = "ADU/sec"
             yd, xd = arrayshape
             grps = 0
             integ = 0
-            tgroup = 0.
+            tgroup = 0.0
             arraygroup = 0
             arrayint = 0
-            self.logger.info('Seed image is 2D.')
+            self.logger.info("Seed image is 2D.")
         elif len(arrayshape) == 3:
-            units = 'ADU'
+            units = "ADU"
             grps, yd, xd = arrayshape
             integ = 0
-            tgroup = self.frametime * (self.params['Readout']['nframe'] + self.params['Readout']['nskip'])
-            self.logger.info('Seed image is 3D.')
+            tgroup = self.frametime * (
+                self.params["Readout"]["nframe"] + self.params["Readout"]["nskip"]
+            )
+            self.logger.info("Seed image is 3D.")
         elif len(arrayshape) == 4:
-            units = 'ADU'
+            units = "ADU"
             integ, grps, yd, xd = arrayshape
-            tgroup = self.frametime * (self.params['Readout']['nframe'] + self.params['Readout']['nskip'])
-            self.logger.info('Seed image is 4D.')
+            tgroup = self.frametime * (
+                self.params["Readout"]["nframe"] + self.params["Readout"]["nskip"]
+            )
+            self.logger.info("Seed image is 4D.")
 
         xcent_fov = xd / 2
         ycent_fov = yd / 2
 
         kw = {}
-        kw['XCENTER'] = xcent_fov
-        kw['YCENTER'] = ycent_fov
-        kw['UNITS'] = units
-        kw['TGROUP'] = tgroup
+        kw["XCENTER"] = xcent_fov
+        kw["YCENTER"] = ycent_fov
+        kw["UNITS"] = units
+        kw["TGROUP"] = tgroup
 
         # Set FGS filter to "N/A" in the output file
         # as this is the value DMS looks for.
-        if self.params['Readout']['filter'] == "NA":
-            self.params['Readout']['filter'] = "N/A"
-        if self.params['Readout']['pupil'] == "NA":
-            self.params['Readout']['pupil'] = "N/A"
-        kw['FILTER'] = self.params['Readout']['filter']
-        kw['PUPIL'] = self.params['Readout']['pupil']
-        kw['PHOTFLAM'] = self.photflam
-        kw['PHOTFNU'] = self.photfnu
-        kw['PHOTPLAM'] = self.pivot * 1.e4  # put into angstroms
-        kw['NOMXDIM'] = self.nominal_dims[1]
-        kw['NOMYDIM'] = self.nominal_dims[0]
-        kw['NOMXSTRT'] = np.int(self.coord_adjust['xoffset'] + 1)
-        kw['NOMXEND'] = np.int(self.nominal_dims[1] + self.coord_adjust['xoffset'])
-        kw['NOMYSTRT'] = np.int(self.coord_adjust['yoffset'] + 1)
-        kw['NOMYEND'] = np.int(self.nominal_dims[0] + self.coord_adjust['yoffset'])
+        if self.params["Readout"]["filter"] == "NA":
+            self.params["Readout"]["filter"] = "N/A"
+        if self.params["Readout"]["pupil"] == "NA":
+            self.params["Readout"]["pupil"] = "N/A"
+        kw["FILTER"] = self.params["Readout"]["filter"]
+        kw["PUPIL"] = self.params["Readout"]["pupil"]
+        kw["PHOTFLAM"] = self.photflam
+        kw["PHOTFNU"] = self.photfnu
+        kw["PHOTPLAM"] = self.pivot * 1.0e4  # put into angstroms
+        kw["NOMXDIM"] = self.nominal_dims[1]
+        kw["NOMYDIM"] = self.nominal_dims[0]
+        kw["NOMXSTRT"] = np.int(self.coord_adjust["xoffset"] + 1)
+        kw["NOMXEND"] = np.int(self.nominal_dims[1] + self.coord_adjust["xoffset"])
+        kw["NOMYSTRT"] = np.int(self.coord_adjust["yoffset"] + 1)
+        kw["NOMYEND"] = np.int(self.nominal_dims[0] + self.coord_adjust["yoffset"])
 
         # Files/inputs used during seed image production
-        kw['YAMLFILE'] = self.paramfile
-        kw['GAINFILE'] = self.params['Reffiles']['gain']
-        kw['DISTORTN'] = self.params['Reffiles']['astrometric']
-        kw['IPC'] = self.params['Reffiles']['ipc']
-        kw['CROSSTLK'] = self.params['Reffiles']['crosstalk']
-        kw['FLUX_CAL'] = self.params['Reffiles']['flux_cal']
-        kw['FTHRUPUT'] = self.params['Reffiles']['filter_throughput']
-        kw['PTSRCCAT'] = self.params['simSignals']['pointsource']
-        kw['GALAXCAT'] = self.params['simSignals']['galaxyListFile']
-        kw['EXTNDCAT'] = self.params['simSignals']['extended']
-        kw['MTPTSCAT'] = self.params['simSignals']['movingTargetList']
-        kw['MTSERSIC'] = self.params['simSignals']['movingTargetSersic']
-        kw['MTEXTEND'] = self.params['simSignals']['movingTargetExtended']
-        kw['NONSDRAL'] = self.params['simSignals']['movingTargetToTrack']
-        kw['BKGDRATE'] = self.params['simSignals']['bkgdrate']
-        kw['TRACKING'] = self.params['Telescope']['tracking']
-        kw['POISSON'] = self.params['simSignals']['poissonseed']
-        kw['PSFWFE'] = self.params['simSignals']['psfwfe']
-        kw['PSFWFGRP'] = self.params['simSignals']['psfwfegroup']
-        kw['MRGEVRSN'] = mirage.__version__
+        kw["YAMLFILE"] = self.paramfile
+        kw["GAINFILE"] = self.params["Reffiles"]["gain"]
+        kw["DISTORTN"] = self.params["Reffiles"]["astrometric"]
+        kw["IPC"] = self.params["Reffiles"]["ipc"]
+        kw["CROSSTLK"] = self.params["Reffiles"]["crosstalk"]
+        kw["FLUX_CAL"] = self.params["Reffiles"]["flux_cal"]
+        kw["FTHRUPUT"] = self.params["Reffiles"]["filter_throughput"]
+        kw["PTSRCCAT"] = self.params["simSignals"]["pointsource"]
+        kw["GALAXCAT"] = self.params["simSignals"]["galaxyListFile"]
+        kw["EXTNDCAT"] = self.params["simSignals"]["extended"]
+        kw["MTPTSCAT"] = self.params["simSignals"]["movingTargetList"]
+        kw["MTSERSIC"] = self.params["simSignals"]["movingTargetSersic"]
+        kw["MTEXTEND"] = self.params["simSignals"]["movingTargetExtended"]
+        kw["NONSDRAL"] = self.params["simSignals"]["movingTargetToTrack"]
+        kw["BKGDRATE"] = self.params["simSignals"]["bkgdrate"]
+        kw["TRACKING"] = self.params["Telescope"]["tracking"]
+        kw["POISSON"] = self.params["simSignals"]["poissonseed"]
+        kw["PSFWFE"] = self.params["simSignals"]["psfwfe"]
+        kw["PSFWFGRP"] = self.params["simSignals"]["psfwfegroup"]
+        kw["MRGEVRSN"] = mirage.__version__
 
         # Observations with high data volumes (e.g. moving targets, TSO)
         # can be split into multiple "segments" in order to cap the
         # maximum file size
-        kw['EXSEGTOT'] = self.total_seed_segments  # Total number of segments in exp
-        kw['EXSEGNUM'] = self.segment_number       # Segment number of this file
-        kw['PART_NUM'] = self.segment_part_number  # Segment part number of this file
+        kw["EXSEGTOT"] = self.total_seed_segments  # Total number of segments in exp
+        kw["EXSEGNUM"] = self.segment_number  # Segment number of this file
+        kw["PART_NUM"] = self.segment_part_number  # Segment part number of this file
 
         # Total number of integrations and groups in the current segment
         # (combining all parts of the segment)
-        kw['SEGINT'] = self.segment_ints
-        kw['SEGGROUP'] = self.segment_frames
+        kw["SEGINT"] = self.segment_ints
+        kw["SEGGROUP"] = self.segment_frames
 
         # Total number of integrations and groups in the exposure
-        kw['EXPINT'] = self.params['Readout']['nint']
-        kw['EXPGRP'] = self.params['Readout']['ngroup']
+        kw["EXPINT"] = self.params["Readout"]["nint"]
+        kw["EXPGRP"] = self.params["Readout"]["ngroup"]
 
         # Indexes of the ints and groups where the data in this file go
         # Frame and integration indexes of the segment within the exposure
-        kw['SEGFRMST'] = self.segment_frame_start_number
-        kw['SEGFRMED'] = self.segment_frame_start_number + grps - 1
-        kw['SEGINTST'] = self.segment_int_start_number
-        kw['SEGINTED'] = self.segment_int_start_number + self.segment_ints - 1
+        kw["SEGFRMST"] = self.segment_frame_start_number
+        kw["SEGFRMED"] = self.segment_frame_start_number + grps - 1
+        kw["SEGINTST"] = self.segment_int_start_number
+        kw["SEGINTED"] = self.segment_int_start_number + self.segment_ints - 1
 
         # Frame and integration indexes of the part within the segment
-        kw['PTINTSRT'] = self.part_int_start_number
-        kw['PTFRMSRT'] = self.part_frame_start_number
+        kw["PTINTSRT"] = self.part_int_start_number
+        kw["PTFRMSRT"] = self.part_frame_start_number
 
         # Seed images provided to disperser are always embedded in an array
         # that is larger than full frame. These keywords describe where the
         # detector is within this oversized array
-        if self.params['Inst']['mode'] in ['wfss', 'ts_grism', 'pom']:
-            kw['NOMXDIM'] = self.ffsize
-            kw['NOMYDIM'] = self.ffsize
-            kw['NOMXSTRT'] = self.trans_ff_xmin
-            kw['NOMXEND'] = kw['NOMXSTRT'] + self.ffsize - 1
-            kw['NOMYSTRT'] = self.trans_ff_ymin
-            kw['NOMYEND'] = kw['NOMYSTRT'] + self.ffsize - 1
+        if self.params["Inst"]["mode"] in ["wfss", "ts_grism", "pom"]:
+            kw["NOMXDIM"] = self.ffsize
+            kw["NOMYDIM"] = self.ffsize
+            kw["NOMXSTRT"] = self.trans_ff_xmin
+            kw["NOMXEND"] = kw["NOMXSTRT"] + self.ffsize - 1
+            kw["NOMYSTRT"] = self.trans_ff_ymin
+            kw["NOMYEND"] = kw["NOMYSTRT"] + self.ffsize - 1
 
         # TSO-specific header keywords
-        if self.params['Inst']['mode'] in ['ts_imaging', 'ts_grism']:
-            kw['TSOVISIT'] = True
+        if self.params["Inst"]["mode"] in ["ts_imaging", "ts_grism"]:
+            kw["TSOVISIT"] = True
         else:
-            kw['TSOVISIT'] = False
+            kw["TSOVISIT"] = False
 
-        kw['XREF_SCI'] = self.siaf.XSciRef
-        kw['YREF_SCI'] = self.siaf.YSciRef
+        kw["XREF_SCI"] = self.siaf.XSciRef
+        kw["YREF_SCI"] = self.siaf.YSciRef
 
-        kw['GRISMPDX'] = self.grism_direct_factor_x
-        kw['GRISMPDY'] = self.grism_direct_factor_y
+        kw["GRISMPDX"] = self.grism_direct_factor_x
+        kw["GRISMPDY"] = self.grism_direct_factor_y
         self.seedinfo = kw
-        self.saveSingleFits(seed_image, seed_file_name, key_dict=kw, image2=segmentation_map, image2type='SEGMAP')
+        self.saveSingleFits(
+            seed_image,
+            seed_file_name,
+            key_dict=kw,
+            image2=segmentation_map,
+            image2type="SEGMAP",
+        )
 
     def combineSimulatedDataSources(self, inputtype, input1, mov_tar_ramp):
         """Combine the exposure containing the trailed sources with the
@@ -1024,14 +1282,17 @@ class Catalog_seed():
         case you can combine directly. Use 'ramp' with
         non-sidereal TRACKING data, and 'countrate' with sidereal TRACKING data
         """
-        if inputtype == 'countrate':
+        if inputtype == "countrate":
             # First change the countrate image into a ramp
             yd, xd = input1.shape
-            numints = self.params['Readout']['nint']
-            num_frames = self.params['Readout']['ngroup'] * \
-                (self.params['Readout']['nframe'] + self.params['Readout']['nskip'])
-            self.logger.info("Countrate image of synthetic signals being converted to "
-                             "RAPID/NISRAPID integration with {} frames.".format(num_frames))
+            numints = self.params["Readout"]["nint"]
+            num_frames = self.params["Readout"]["ngroup"] * (
+                self.params["Readout"]["nframe"] + self.params["Readout"]["nskip"]
+            )
+            self.logger.info(
+                "Countrate image of synthetic signals being converted to "
+                "RAPID/NISRAPID integration with {} frames.".format(num_frames)
+            )
             input1_ramp = np.zeros((numints, num_frames, yd, xd))
             for i in range(num_frames):
                 input1_ramp[0, i, :, :] = input1 * self.frametime * (i + 1)
@@ -1057,10 +1318,13 @@ class Catalog_seed():
         # Only attempt to add ghosts to NIRISS observations where the
         # user has requested it.
         add_ghosts = False
-        if self.params['Inst']['instrument'].lower() == 'niriss' and self.params['simSignals']['add_ghosts']:
+        if (
+            self.params["Inst"]["instrument"].lower() == "niriss"
+            and self.params["simSignals"]["add_ghosts"]
+        ):
             add_ghosts = True
 
-        if self.params['Telescope']['tracking'].lower() != 'non-sidereal':
+        if self.params["Telescope"]["tracking"].lower() != "non-sidereal":
             tracking = False
             ra_vel = None
             dec_vel = None
@@ -1075,36 +1339,38 @@ class Catalog_seed():
             ra_interp_fncn = self.nonsidereal_ra_interp
             dec_interp_fncn = self.nonsidereal_dec_interp
 
-        if self.runStep['movingTargets']:
+        if self.runStep["movingTargets"]:
             self.logger.info("Adding moving point sources to seed image.")
 
-            mov_targs_ptsrc, mt_ptsrc_segmap = self.movingTargetInputs(self.params['simSignals']['movingTargetList'],
-                                                                       'point_source',
-                                                                       MT_tracking=tracking,
-                                                                       tracking_ra_vel=ra_vel,
-                                                                       tracking_dec_vel=dec_vel,
-                                                                       trackingPixVelFlag=vel_flag,
-                                                                       non_sidereal_ra_interp_function=ra_interp_fncn,
-                                                                       non_sidereal_dec_interp_function=dec_interp_fncn,
-                                                                       add_ghosts=add_ghosts
-                                                                       )
+            mov_targs_ptsrc, mt_ptsrc_segmap = self.movingTargetInputs(
+                self.params["simSignals"]["movingTargetList"],
+                "point_source",
+                MT_tracking=tracking,
+                tracking_ra_vel=ra_vel,
+                tracking_dec_vel=dec_vel,
+                trackingPixVelFlag=vel_flag,
+                non_sidereal_ra_interp_function=ra_interp_fncn,
+                non_sidereal_dec_interp_function=dec_interp_fncn,
+                add_ghosts=add_ghosts,
+            )
 
             mov_targs_ramps.append(mov_targs_ptsrc)
             mov_targs_segmap = np.copy(mt_ptsrc_segmap)
 
         # moving target using a sersic object
-        if self.runStep['movingTargetsSersic']:
+        if self.runStep["movingTargetsSersic"]:
             self.logger.info("Adding moving galaxies to seed image.")
-            mov_targs_sersic, mt_galaxy_segmap = self.movingTargetInputs(self.params['simSignals']['movingTargetSersic'],
-                                                                         'galaxies',
-                                                                         MT_tracking=tracking,
-                                                                         tracking_ra_vel=ra_vel,
-                                                                         tracking_dec_vel=dec_vel,
-                                                                         trackingPixVelFlag=vel_flag,
-                                                                         non_sidereal_ra_interp_function=ra_interp_fncn,
-                                                                         non_sidereal_dec_interp_function=dec_interp_fncn,
-                                                                         add_ghosts=add_ghosts
-                                                                         )
+            mov_targs_sersic, mt_galaxy_segmap = self.movingTargetInputs(
+                self.params["simSignals"]["movingTargetSersic"],
+                "galaxies",
+                MT_tracking=tracking,
+                tracking_ra_vel=ra_vel,
+                tracking_dec_vel=dec_vel,
+                trackingPixVelFlag=vel_flag,
+                non_sidereal_ra_interp_function=ra_interp_fncn,
+                non_sidereal_dec_interp_function=dec_interp_fncn,
+                add_ghosts=add_ghosts,
+            )
 
             mov_targs_ramps.append(mov_targs_sersic)
             if mov_targs_segmap is None:
@@ -1113,18 +1379,19 @@ class Catalog_seed():
                 mov_targs_segmap += mt_galaxy_segmap
 
         # moving target using an extended object
-        if self.runStep['movingTargetsExtended']:
+        if self.runStep["movingTargetsExtended"]:
             self.logger.info("Adding moving extended sources to seed image.")
-            mov_targs_ext, mt_ext_segmap = self.movingTargetInputs(self.params['simSignals']['movingTargetExtended'],
-                                                                   'extended',
-                                                                   MT_tracking=tracking,
-                                                                   tracking_ra_vel=ra_vel,
-                                                                   tracking_dec_vel=dec_vel,
-                                                                   trackingPixVelFlag=vel_flag,
-                                                                   non_sidereal_ra_interp_function=ra_interp_fncn,
-                                                                   non_sidereal_dec_interp_function=dec_interp_fncn,
-                                                                   add_ghosts=add_ghosts
-                                                                   )
+            mov_targs_ext, mt_ext_segmap = self.movingTargetInputs(
+                self.params["simSignals"]["movingTargetExtended"],
+                "extended",
+                MT_tracking=tracking,
+                tracking_ra_vel=ra_vel,
+                tracking_dec_vel=dec_vel,
+                trackingPixVelFlag=vel_flag,
+                non_sidereal_ra_interp_function=ra_interp_fncn,
+                non_sidereal_dec_interp_function=dec_interp_fncn,
+                add_ghosts=add_ghosts,
+            )
 
             mov_targs_ramps.append(mov_targs_ext)
             if mov_targs_segmap is None:
@@ -1133,7 +1400,11 @@ class Catalog_seed():
                 mov_targs_segmap += mt_ext_segmap
 
         mov_targs_integration = None
-        if self.runStep['movingTargets'] or self.runStep['movingTargetsSersic'] or self.runStep['movingTargetsExtended']:
+        if (
+            self.runStep["movingTargets"]
+            or self.runStep["movingTargetsSersic"]
+            or self.runStep["movingTargetsExtended"]
+        ):
             # Combine the ramps of the moving targets if there is more than one type
             mov_targs_integration = mov_targs_ramps[0]
             if len(mov_targs_ramps) > 1:
@@ -1146,15 +1417,23 @@ class Catalog_seed():
         # offsets between the nominal output array and the input lists if the observation being
         # modeled is wfss
 
-        instrument = self.params['Inst']['instrument']
+        instrument = self.params["Inst"]["instrument"]
 
         # Normal imaging with grism image requested
-        if (instrument.lower() == 'nircam' and self.params['Output']['grism_source_image']) or \
-           (instrument.lower() == 'niriss' and (self.params['Inst']['mode'] in ["pom", "wfss"] or self.params['Output']['grism_source_image'])):
-            self.coord_adjust['x'] = self.grism_direct_factor_x
-            self.coord_adjust['y'] = self.grism_direct_factor_y
-            self.coord_adjust['xoffset'] = self.trans_ff_xmin + self.subarray_bounds[0]
-            self.coord_adjust['yoffset'] = self.trans_ff_ymin + self.subarray_bounds[1]
+        if (
+            instrument.lower() == "nircam"
+            and self.params["Output"]["grism_source_image"]
+        ) or (
+            instrument.lower() == "niriss"
+            and (
+                self.params["Inst"]["mode"] in ["pom", "wfss"]
+                or self.params["Output"]["grism_source_image"]
+            )
+        ):
+            self.coord_adjust["x"] = self.grism_direct_factor_x
+            self.coord_adjust["y"] = self.grism_direct_factor_y
+            self.coord_adjust["xoffset"] = self.trans_ff_xmin + self.subarray_bounds[0]
+            self.coord_adjust["yoffset"] = self.trans_ff_ymin + self.subarray_bounds[1]
 
     def non_sidereal_seed(self):
         """
@@ -1164,20 +1443,30 @@ class Catalog_seed():
         # Only attempt to add ghosts to NIRISS observations where the
         # user has requested it.
         add_ghosts = False
-        if self.params['Inst']['instrument'].lower() == 'niriss' and self.params['simSignals']['add_ghosts']:
+        if (
+            self.params["Inst"]["instrument"].lower() == "niriss"
+            and self.params["simSignals"]["add_ghosts"]
+        ):
             add_ghosts = True
 
         # Create a count rate image containing only the non-sidereal target(s)
         # These will be stationary in the fov
-        nonsidereal_countrate, nonsidereal_segmap, self.ra_vel, self.dec_vel, self.nonsidereal_pix_vel_flag, self.nonsidereal_ra_interp, \
-           self.nonsidereal_dec_interp = self.nonsidereal_CRImage(self.params['simSignals']['movingTargetToTrack'])
+        (
+            nonsidereal_countrate,
+            nonsidereal_segmap,
+            self.ra_vel,
+            self.dec_vel,
+            self.nonsidereal_pix_vel_flag,
+            self.nonsidereal_ra_interp,
+            self.nonsidereal_dec_interp,
+        ) = self.nonsidereal_CRImage(self.params["simSignals"]["movingTargetToTrack"])
 
         # Expand into a RAPID exposure and convert from signal rate to signals
         ns_yd, ns_xd = nonsidereal_countrate.shape
-        ns_int = self.params['Readout']['nint']
-        ns_group = self.params['Readout']['ngroup']
-        ns_nframe = self.params['Readout']['nframe']
-        ns_nskip = self.params['Readout']['nskip']
+        ns_int = self.params["Readout"]["nint"]
+        ns_group = self.params["Readout"]["ngroup"]
+        ns_nframe = self.params["Readout"]["nframe"]
+        ns_nskip = self.params["Readout"]["nskip"]
         totframes = ns_group * (ns_nframe + ns_nskip)
         tmptimes = self.frametime * np.arange(1, totframes + 1)
 
@@ -1193,66 +1482,87 @@ class Catalog_seed():
         mtt_data_list = []
         mtt_data_segmap = None
 
-        if self.runStep['pointsource']:
+        if self.runStep["pointsource"]:
             # Now ptsrc is a list, which we need to provide to
             # movingTargetInputs
             self.logger.info("Adding moving background point sources to seed image.")
-            mtt_ptsrc, mtt_ptsrc_segmap = self.movingTargetInputs(self.params['simSignals']['pointsource'],
-                                                                  'point_source',
-                                                                  MT_tracking=True,
-                                                                  tracking_ra_vel=self.ra_vel,
-                                                                  tracking_dec_vel=self.dec_vel,
-                                                                  trackingPixVelFlag=self.nonsidereal_pix_vel_flag,
-                                                                  non_sidereal_ra_interp_function=self.nonsidereal_ra_interp,
-                                                                  non_sidereal_dec_interp_function=self.nonsidereal_dec_interp,
-                                                                  add_ghosts=add_ghosts)
+            mtt_ptsrc, mtt_ptsrc_segmap = self.movingTargetInputs(
+                self.params["simSignals"]["pointsource"],
+                "point_source",
+                MT_tracking=True,
+                tracking_ra_vel=self.ra_vel,
+                tracking_dec_vel=self.dec_vel,
+                trackingPixVelFlag=self.nonsidereal_pix_vel_flag,
+                non_sidereal_ra_interp_function=self.nonsidereal_ra_interp,
+                non_sidereal_dec_interp_function=self.nonsidereal_dec_interp,
+                add_ghosts=add_ghosts,
+            )
             mtt_data_list.append(mtt_ptsrc)
             if mtt_data_segmap is None:
                 mtt_data_segmap = np.copy(mtt_ptsrc_segmap)
             else:
                 mtt_data_segmap += mtt_ptsrc_segmap
-            self.logger.info(("Done with creating moving targets from {}"
-                              .format(self.params['simSignals']['pointsource'])))
+            self.logger.info(
+                (
+                    "Done with creating moving targets from {}".format(
+                        self.params["simSignals"]["pointsource"]
+                    )
+                )
+            )
 
-        if self.runStep['galaxies']:
+        if self.runStep["galaxies"]:
             self.logger.info("Adding moving background galaxies to seed image.")
-            mtt_galaxies, mtt_galaxies_segmap = self.movingTargetInputs(self.params['simSignals']['galaxyListFile'],
-                                                                        'galaxies',
-                                                                        MT_tracking=True,
-                                                                        tracking_ra_vel=self.ra_vel,
-                                                                        tracking_dec_vel=self.dec_vel,
-                                                                        trackingPixVelFlag=self.nonsidereal_pix_vel_flag,
-                                                                        non_sidereal_ra_interp_function=self.nonsidereal_ra_interp,
-                                                                        non_sidereal_dec_interp_function=self.nonsidereal_dec_interp,
-                                                                        add_ghosts=add_ghosts)
+            mtt_galaxies, mtt_galaxies_segmap = self.movingTargetInputs(
+                self.params["simSignals"]["galaxyListFile"],
+                "galaxies",
+                MT_tracking=True,
+                tracking_ra_vel=self.ra_vel,
+                tracking_dec_vel=self.dec_vel,
+                trackingPixVelFlag=self.nonsidereal_pix_vel_flag,
+                non_sidereal_ra_interp_function=self.nonsidereal_ra_interp,
+                non_sidereal_dec_interp_function=self.nonsidereal_dec_interp,
+                add_ghosts=add_ghosts,
+            )
             mtt_data_list.append(mtt_galaxies)
             if mtt_data_segmap is None:
                 mtt_data_segmap = np.copy(mtt_galaxies_segmap)
             else:
                 mtt_data_segmap += mtt_galaxies_segmap
 
-            self.logger.info(("Done with creating moving targets from {}".
-                              format(self.params['simSignals']['galaxyListFile'])))
+            self.logger.info(
+                (
+                    "Done with creating moving targets from {}".format(
+                        self.params["simSignals"]["galaxyListFile"]
+                    )
+                )
+            )
 
-        if self.runStep['extendedsource']:
+        if self.runStep["extendedsource"]:
             self.logger.info("Adding moving background extended sources to seed image.")
-            mtt_ext, mtt_ext_segmap = self.movingTargetInputs(self.params['simSignals']['extended'],
-                                                              'extended',
-                                                              MT_tracking=True,
-                                                              tracking_ra_vel=self.ra_vel,
-                                                              tracking_dec_vel=self.dec_vel,
-                                                              trackingPixVelFlag=self.nonsidereal_pix_vel_flag,
-                                                              non_sidereal_ra_interp_function=self.nonsidereal_ra_interp,
-                                                              non_sidereal_dec_interp_function=self.nonsidereal_dec_interp,
-                                                              add_ghosts=add_ghosts)
+            mtt_ext, mtt_ext_segmap = self.movingTargetInputs(
+                self.params["simSignals"]["extended"],
+                "extended",
+                MT_tracking=True,
+                tracking_ra_vel=self.ra_vel,
+                tracking_dec_vel=self.dec_vel,
+                trackingPixVelFlag=self.nonsidereal_pix_vel_flag,
+                non_sidereal_ra_interp_function=self.nonsidereal_ra_interp,
+                non_sidereal_dec_interp_function=self.nonsidereal_dec_interp,
+                add_ghosts=add_ghosts,
+            )
             mtt_data_list.append(mtt_ext)
             if mtt_data_segmap is None:
                 mtt_data_segmap = np.copy(mtt_ext_segmap)
             else:
                 mtt_data_segmap += mtt_ext_segmap
 
-            self.logger.info(("Done with creating moving targets from {}".
-                              format(self.params['simSignals']['extended'])))
+            self.logger.info(
+                (
+                    "Done with creating moving targets from {}".format(
+                        self.params["simSignals"]["extended"]
+                    )
+                )
+            )
 
         # Add in the other objects which are not being tracked on
         # (i.e. the sidereal targets)
@@ -1268,7 +1578,7 @@ class Catalog_seed():
         opaque_target = True
         if len(mtt_data_list) > 0:
             for i in range(len(mtt_data_list)):
-                #non_sidereal_ramp += mtt_data_list[i]
+                # non_sidereal_ramp += mtt_data_list[i]
 
                 # If the tracked target is opaque (e.g. a planet, astroid, etc),
                 # the background (trailed) objects will only be added to the pixels that
@@ -1277,12 +1587,16 @@ class Catalog_seed():
                 if opaque_target:
                     # Find pixels that do not contain the tracked target
                     # (Note that the segmap here is 2D but the seed images are 4D)
-                    self.logger.info(('Tracked non-sidereal target is opaque. Background sources behind the target will not be added. '
-                                      'If background sources are being suppressed in too many pixels (e.g. within the diffraction '
-                                      'spikes of the primary target), try setting "signal_low_limit_for_segmap" in the input yaml '
-                                      'file to a larger value. This will reduce the number of pixels associated with the primary '
-                                      'target in the segmentation map, which defines the pixels where background targets will not '
-                                      'be added.'))
+                    self.logger.info(
+                        (
+                            "Tracked non-sidereal target is opaque. Background sources behind the target will not be added. "
+                            "If background sources are being suppressed in too many pixels (e.g. within the diffraction "
+                            'spikes of the primary target), try setting "signal_low_limit_for_segmap" in the input yaml '
+                            "file to a larger value. This will reduce the number of pixels associated with the primary "
+                            "target in the segmentation map, which defines the pixels where background targets will not "
+                            "be added."
+                        )
+                    )
                     outside_target = nonsidereal_segmap == 0
 
                     # Add signal from background targets only to those pixels that
@@ -1291,17 +1605,28 @@ class Catalog_seed():
                         for framenum in range(non_sidereal_ramp.shape[1]):
                             ns_tmp_frame = non_sidereal_ramp[integ, framenum, :, :]
                             bcgd_srcs_frame = mtt_data_list[i][integ, framenum, :, :]
-                            ns_tmp_frame[outside_target] = ns_tmp_frame[outside_target] + bcgd_srcs_frame[outside_target]
+                            ns_tmp_frame[outside_target] = (
+                                ns_tmp_frame[outside_target]
+                                + bcgd_srcs_frame[outside_target]
+                            )
                             non_sidereal_ramp[integ, framenum, :, :] = ns_tmp_frame
 
         if mtt_data_segmap is not None:
             nonsidereal_segmap[outside_target] += mtt_data_segmap[outside_target]
         return non_sidereal_ramp, nonsidereal_segmap
 
-    def movingTargetInputs(self, filename, input_type, MT_tracking=False,
-                           tracking_ra_vel=None, tracking_dec_vel=None,
-                           trackingPixVelFlag=False, non_sidereal_ra_interp_function=None,
-                           non_sidereal_dec_interp_function=None, add_ghosts=True):
+    def movingTargetInputs(
+        self,
+        filename,
+        input_type,
+        MT_tracking=False,
+        tracking_ra_vel=None,
+        tracking_dec_vel=None,
+        trackingPixVelFlag=False,
+        non_sidereal_ra_interp_function=None,
+        non_sidereal_dec_interp_function=None,
+        add_ghosts=True,
+    ):
         """Read in listfile of moving targets and perform needed
         calculations to get inputs for moving_targets.py. Note that for non-sidereal
         exposures (MT_tracking == True), we potentially flip the coordinate system, and
@@ -1363,22 +1688,27 @@ class Catalog_seed():
         # set add the velocity columns and set the velocities to zero.
         # Also set the pixel velocity flag to the same value as the
         # pixel flag, to minimize coordinate transforms later.
-        if 'x_or_RA_velocity' not in mtlist.colnames and 'ephemeris_file' not in mtlist.colnames:
-            self.logger.info('Sidereal catalog. Setting velocities to zero before proceeding.')
-            nelem = len(mtlist['x_or_RA'])
-            mtlist['x_or_RA_velocity'] = [0.] * nelem
-            mtlist['y_or_Dec_velocity'] = [0.] * nelem
+        if (
+            "x_or_RA_velocity" not in mtlist.colnames
+            and "ephemeris_file" not in mtlist.colnames
+        ):
+            self.logger.info(
+                "Sidereal catalog. Setting velocities to zero before proceeding."
+            )
+            nelem = len(mtlist["x_or_RA"])
+            mtlist["x_or_RA_velocity"] = [0.0] * nelem
+            mtlist["y_or_Dec_velocity"] = [0.0] * nelem
             pixelvelflag = pixelFlag
 
         # Get catalog index numbers
-        indexes = mtlist['index']
+        indexes = mtlist["index"]
 
         # Exposure times for all frames
-        numints = self.params['Readout']['nint']
-        numgroups = self.params['Readout']['ngroup']
-        numframes = self.params['Readout']['nframe']
-        numskips = self.params['Readout']['nskip']
-        numresets = self.params['Readout']['resets_bet_ints']
+        numints = self.params["Readout"]["nint"]
+        numgroups = self.params["Readout"]["ngroup"]
+        numframes = self.params["Readout"]["nframe"]
+        numskips = self.params["Readout"]["nskip"]
+        numresets = self.params["Readout"]["resets_bet_ints"]
 
         frames_per_group = numframes + numskips
         frames_per_integration = numgroups * frames_per_group
@@ -1392,16 +1722,16 @@ class Catalog_seed():
             # Frames for all integrations
             total_frames *= numints
             # Add the resets for all but the first and last integrations
-            total_frames += (numresets * (numints - 1))
+            total_frames += numresets * (numints - 1)
         frameexptimes = self.frametime * np.arange(-1, total_frames)
 
         # output image dimensions
         dims = self.nominal_dims
-        newdimsx = np.int(dims[1] * self.coord_adjust['x'])
-        newdimsy = np.int(dims[0] * self.coord_adjust['y'])
+        newdimsx = np.int(dims[1] * self.coord_adjust["x"])
+        newdimsy = np.int(dims[0] * self.coord_adjust["y"])
 
         # Set up seed integration
-        #mt_integration = np.zeros((numints, total_frames, newdimsy, newdimsx))
+        # mt_integration = np.zeros((numints, total_frames, newdimsy, newdimsx))
         mt_integration = np.zeros((numints, frames_per_integration, newdimsy, newdimsx))
 
         # Corresponding (2D) segmentation map
@@ -1413,28 +1743,40 @@ class Catalog_seed():
         # Check the source list and remove any sources that are well outside the
         # field of view of the detector. These sources cause the coordinate
         # conversion to hang.
-        indexes, mtlist = self.remove_outside_fov_sources(indexes, mtlist, pixelFlag, 4096)
+        indexes, mtlist = self.remove_outside_fov_sources(
+            indexes, mtlist, pixelFlag, 4096
+        )
 
         # Determine the name of the column to use for source magnitudes
         mag_column = self.select_magnitude_column(mtlist, filename)
 
         # If any ephemeris file will be used, get the calendar dates associated
         # with each frame
-        if 'ephemeris_file' in mtlist.colnames or non_sidereal_ra_interp_function is not None:
-            ob_time = '{}T{}'.format(self.params['Output']['date_obs'], self.params['Output']['time_obs'])
+        if (
+            "ephemeris_file" in mtlist.colnames
+            or non_sidereal_ra_interp_function is not None
+        ):
+            ob_time = "{}T{}".format(
+                self.params["Output"]["date_obs"], self.params["Output"]["time_obs"]
+            )
 
             # Allow time_obs to have an integer or fractional number of seconds
             try:
-                start_date = datetime.datetime.strptime(ob_time, '%Y-%m-%dT%H:%M:%S')
+                start_date = datetime.datetime.strptime(ob_time, "%Y-%m-%dT%H:%M:%S")
             except ValueError:
-                start_date = datetime.datetime.strptime(ob_time, '%Y-%m-%dT%H:%M:%S.%f')
-            all_times = [ephemeris_tools.to_timestamp(start_date + datetime.timedelta(seconds=elem)) for elem in frameexptimes]
+                start_date = datetime.datetime.strptime(ob_time, "%Y-%m-%dT%H:%M:%S.%f")
+            all_times = [
+                ephemeris_tools.to_timestamp(
+                    start_date + datetime.timedelta(seconds=elem)
+                )
+                for elem in frameexptimes
+            ]
 
         # If the ephemeris_file column is not present, add it and populate it with
         # 'none' for all entries. This will make for fewer possibilities when looping
         # over sources later
-        if 'ephemeris_file' not in mtlist.colnames:
-            mtlist['ephemeris_file'] = ['None'] * len(mtlist['x_or_RA'])
+        if "ephemeris_file" not in mtlist.colnames:
+            mtlist["ephemeris_file"] = ["None"] * len(mtlist["x_or_RA"])
 
         # If there is an interpolation function for the non-sidereal source's position,
         # get the position of the source at all times. The catalog may have different
@@ -1445,8 +1787,12 @@ class Catalog_seed():
         delta_non_sidereal_ra = None
         delta_non_sidereal_dec = None
         if non_sidereal_ra_interp_function is not None:
-            self.logger.info(("Finding non-sidereal source's positions at each frame in order to "
-                              "calculate the offsets to apply to the background sources."))
+            self.logger.info(
+                (
+                    "Finding non-sidereal source's positions at each frame in order to "
+                    "calculate the offsets to apply to the background sources."
+                )
+            )
             ra_non_sidereal = non_sidereal_ra_interp_function(all_times)
             dec_non_sidereal = non_sidereal_dec_interp_function(all_times)
             delta_non_sidereal_ra = ra_non_sidereal - ra_non_sidereal[0]
@@ -1454,18 +1800,26 @@ class Catalog_seed():
         elif tracking_ra_vel is not None:
             # If the non-sidereal source velocity is given using manual inputs rather
             # than an ephemeris file, use that to get the source location vs time
-            self.logger.info(("Using the provided non-sidereal velocity values to determine "
-                               "offsets to apply to the background sources."))
+            self.logger.info(
+                (
+                    "Using the provided non-sidereal velocity values to determine "
+                    "offsets to apply to the background sources."
+                )
+            )
             if trackingPixVelFlag:
                 # Here the non-sidereal source velocity is in units of pix/hour.
                 # Convert to pixels per second and multply by frame times
-                delta_non_sidereal_x = (tracking_ra_vel / 3600.) * frameexptimes
-                delta_non_sidereal_y = (tracking_dec_vel / 3600.) * frameexptimes
+                delta_non_sidereal_x = (tracking_ra_vel / 3600.0) * frameexptimes
+                delta_non_sidereal_y = (tracking_dec_vel / 3600.0) * frameexptimes
             else:
                 # Here the non-sidereal source velocity is in units of arcsec/hour.
                 # Convert to degrees per hour and multply by frame times
-                delta_non_sidereal_ra = (tracking_ra_vel / 3600. / 3600.) * frameexptimes
-                delta_non_sidereal_dec = (tracking_dec_vel / 3600. / 3600.) * frameexptimes
+                delta_non_sidereal_ra = (
+                    tracking_ra_vel / 3600.0 / 3600.0
+                ) * frameexptimes
+                delta_non_sidereal_dec = (
+                    tracking_dec_vel / 3600.0 / 3600.0
+                ) * frameexptimes
 
         # Loop over sources in the catalog
         times = []
@@ -1483,34 +1837,62 @@ class Catalog_seed():
             # Get the RA, Dec or x,y for the source in all frames
             # not including any effects from non-sidereal tracking.
             # If an ephemeris file is given read it in
-            if entry['ephemeris_file'].lower() != 'none':
-                self.logger.info(("Using ephemeris file {} to find the location of source #{} in {}."
-                                  .format(entry['ephemeris_file'], index, filename)))
-                ra_eph, dec_eph = ephemeris_tools.get_ephemeris(entry['ephemeris_file'])
+            if entry["ephemeris_file"].lower() != "none":
+                self.logger.info(
+                    (
+                        "Using ephemeris file {} to find the location of source #{} in {}.".format(
+                            entry["ephemeris_file"], index, filename
+                        )
+                    )
+                )
+                ra_eph, dec_eph = ephemeris_tools.get_ephemeris(entry["ephemeris_file"])
 
                 # Create list of positions for all frames
                 ra_frames = ra_eph(all_times)
                 dec_frames = dec_eph(all_times)
             else:
-                self.logger.info(("Using provided velocities to find the location of source #{} in {}.".format(index, filename)))
+                self.logger.info(
+                    (
+                        "Using provided velocities to find the location of source #{} in {}.".format(
+                            index, filename
+                        )
+                    )
+                )
                 if pixvelflag:
-                    delta_x_frames = (entry['x_or_RA_velocity'] / 3600.) * frameexptimes
-                    delta_y_frames = (entry['y_or_Dec_velocity'] / 3600.) * frameexptimes
+                    delta_x_frames = (
+                        entry["x_or_RA_velocity"] / 3600.0
+                    ) * frameexptimes
+                    delta_y_frames = (
+                        entry["y_or_Dec_velocity"] / 3600.0
+                    ) * frameexptimes
                 else:
-                    delta_ra_frames = (entry['x_or_RA_velocity'] / 3600. / 3600.) * frameexptimes
-                    delta_dec_frames = (entry['y_or_Dec_velocity'] / 3600. / 3600.) * frameexptimes
+                    delta_ra_frames = (
+                        entry["x_or_RA_velocity"] / 3600.0 / 3600.0
+                    ) * frameexptimes
+                    delta_dec_frames = (
+                        entry["y_or_Dec_velocity"] / 3600.0 / 3600.0
+                    ) * frameexptimes
 
                 if pixelFlag:
                     # Moving target position given in x, y pixel units. Add delta x, y
                     # to get target location at each frame
                     if pixvelflag:
-                        x_frames = entry['x_or_RA'] + delta_x_frames
-                        y_frames = entry['y_or_Dec'] + delta_y_frames
+                        x_frames = entry["x_or_RA"] + delta_x_frames
+                        y_frames = entry["y_or_Dec"] + delta_y_frames
                     else:
                         # Here we have source locations in x,y but velocities
                         # in delta RA, Dec. Translate locations to RA, Dec
                         # and then add the deltas
-                        _, _, entry_ra, entry_dec, pra_str, pdec_str = self.get_positions(entry['x_or_RA'], entry['y_or_Dec'], True, 4096)
+                        (
+                            _,
+                            _,
+                            entry_ra,
+                            entry_dec,
+                            pra_str,
+                            pdec_str,
+                        ) = self.get_positions(
+                            entry["x_or_RA"], entry["y_or_Dec"], True, 4096
+                        )
                         ra_frames = entry_ra + delta_ra_frames
                         dec_frames = entry_dec + delta_dec_frames
                         x_frames = None
@@ -1519,15 +1901,17 @@ class Catalog_seed():
                     if pixvelflag:
                         # Here locations are in RA, Dec, and velocities are in x, y
                         # So translate locations to x, y first.
-                        entry_x, entry_y, _, _, _, _ = self.get_positions(entry['x_or_RA'], entry['y_or_Dec'], False, 4096)
+                        entry_x, entry_y, _, _, _, _ = self.get_positions(
+                            entry["x_or_RA"], entry["y_or_Dec"], False, 4096
+                        )
                         x_frames = entry_x + delta_x_frames
                         y_frames = entry_y + delta_y_frames
                         ra_frames = None
                         dec_frames = None
                     else:
                         # Here locations are in RA, Dec, and velocities are in RA, Dec
-                        ra_frames = entry['x_or_RA'] + delta_ra_frames
-                        dec_frames = entry['y_or_Dec'] + delta_dec_frames
+                        ra_frames = entry["x_or_RA"] + delta_ra_frames
+                        dec_frames = entry["y_or_Dec"] + delta_dec_frames
 
             # Non-sidereal observation: in this case, if we are working with RA, Dec
             # values, the coordinate sytem flips such that the non-sidereal target
@@ -1536,14 +1920,20 @@ class Catalog_seed():
             # change frame-to-frame. If working in x, y pixel units, the same applies
             # with the background targets changing position with time
             if MT_tracking:
-                self.logger.info("Updating source #{} location based on non-sidereal source motion.".format(index))
+                self.logger.info(
+                    "Updating source #{} location based on non-sidereal source motion.".format(
+                        index
+                    )
+                )
                 if delta_non_sidereal_ra is None:
                     # Here the non-sidereal target's offsets are in units of pixels
                     if ra_frames is not None:
                         # Here the background target position is in units of RA, Dec.
                         # So we need to first convert it to x, y
 
-                        x_frames, y_frames = self.radec_list_to_xy_list(ra_frames, dec_frames)
+                        x_frames, y_frames = self.radec_list_to_xy_list(
+                            ra_frames, dec_frames
+                        )
                         ra_frames = None
                         dec_frames = None
 
@@ -1557,7 +1947,9 @@ class Catalog_seed():
                     if x_frames is not None:
                         # Here the background target position is in units of x, y
                         # so we need to first convert it to RA, Dec
-                        ra_frames, dec_frames = self.xy_list_to_radec_list(x_frames, y_frames)
+                        ra_frames, dec_frames = self.xy_list_to_radec_list(
+                            x_frames, y_frames
+                        )
                         x_frames = None
                         y_frames = None
 
@@ -1580,10 +1972,15 @@ class Catalog_seed():
 
             # Get countrate and PSF size info
             if entry[mag_column] is not None:
-                rate = utils.magnitude_to_countrate(self.instrument, self.params['Readout']['filter'],
-                                                    magsys, entry[mag_column],
-                                                    photfnu=self.photfnu,
-                                                    photflam=self.photflam, vegamag_zeropoint=self.vegazeropoint)
+                rate = utils.magnitude_to_countrate(
+                    self.instrument,
+                    self.params["Readout"]["filter"],
+                    magsys,
+                    entry[mag_column],
+                    photfnu=self.photfnu,
+                    photflam=self.photflam,
+                    vegamag_zeropoint=self.vegazeropoint,
+                )
             else:
                 rate = 1.0
 
@@ -1595,17 +1992,19 @@ class Catalog_seed():
             # of the stamp already. For galaxies and extended sources,
             # we have to get the stamp image first to see if any part of
             # the stamp lands on the detector.
-            status = 'on'
-            if input_type == 'point_source':
+            status = "on"
+            if input_type == "point_source":
 
-                status = self.on_detector(x_frames, y_frames, psf_dimensions,
-                                          (newdimsx, newdimsy))
-            if status == 'off':
+                status = self.on_detector(
+                    x_frames, y_frames, psf_dimensions, (newdimsx, newdimsy)
+                )
+            if status == "off":
                 continue
 
             # Create the PSF
-            eval_psf, minx, miny, wings_added = self.create_psf_stamp(pixelx, pixely, psf_x_dim, psf_x_dim,
-                                                                      ignore_detector=True)
+            eval_psf, minx, miny, wings_added = self.create_psf_stamp(
+                pixelx, pixely, psf_x_dim, psf_x_dim, ignore_detector=True
+            )
 
             # Skip sources that fall completely off the detector
             if eval_psf is None:
@@ -1617,9 +2016,21 @@ class Catalog_seed():
             # to determine source locations from the real source's location in each
             # frame individually.
             if add_ghosts:
-                ghost_x_frames, ghost_y_frames, ghost_mags, ghost_countrate, ghost_file = self.locate_ghost(x_frames, y_frames, rate,
-                                                                                                            magsys, entry, input_type,
-                                                                                                            log_skipped_filters=False)
+                (
+                    ghost_x_frames,
+                    ghost_y_frames,
+                    ghost_mags,
+                    ghost_countrate,
+                    ghost_file,
+                ) = self.locate_ghost(
+                    x_frames,
+                    y_frames,
+                    rate,
+                    magsys,
+                    entry,
+                    input_type,
+                    log_skipped_filters=False,
+                )
                 if ghost_file is not None:
                     ghost_stamp, ghost_header = self.basic_get_image(ghost_file)
 
@@ -1627,20 +2038,20 @@ class Catalog_seed():
                     ghost_stamp = ghost_stamp / np.sum(ghost_stamp) * ghost_countrate
 
                     # Convolve with PSF if requested
-                    if self.params['simSignals']['PSFConvolveExtended']:
+                    if self.params["simSignals"]["PSFConvolveExtended"]:
                         # eval_psf should be close to 1.0, but not exactly. For the purposes
                         # of convolution, we want the total signal to be exactly 1.0
                         conv_psf = eval_psf / np.sum(eval_psf)
-                        ghost_stamp = s1.fftconvolve(ghost_stamp, conv_psf, mode='same')
+                        ghost_stamp = s1.fftconvolve(ghost_stamp, conv_psf, mode="same")
 
-            if input_type == 'point_source':
+            if input_type == "point_source":
                 stamp = eval_psf
                 stamp *= rate
 
-            elif input_type == 'extended':
-                stamp, header = self.basic_get_image(entry['filename'])
+            elif input_type == "extended":
+                stamp, header = self.basic_get_image(entry["filename"])
                 # Rotate the stamp image if requested, but don't do so if the specified pos angle is None
-                stamp = self.rotate_extended_image(stamp, entry['pos_angle'])
+                stamp = self.rotate_extended_image(stamp, entry["pos_angle"])
 
                 # If no magnitude is given, use the extended image as-is
                 if rate != 1.0:
@@ -1648,26 +2059,33 @@ class Catalog_seed():
                     stamp *= rate
 
                 # Convolve with instrument PSF if requested
-                if self.params['simSignals']['PSFConvolveExtended']:
+                if self.params["simSignals"]["PSFConvolveExtended"]:
                     stamp_dims = stamp.shape
                     # If the stamp image is smaller than the PSF in either
                     # dimension, embed the stamp in an array that matches
                     # the psf size. This is so the upcoming convolution will
                     # produce an output that includes the wings of the PSF
                     psf_shape = eval_psf.shape
-                    if ((stamp_dims[0] < psf_shape[0]) or (stamp_dims[1] < psf_shape[1])):
+                    if (stamp_dims[0] < psf_shape[0]) or (stamp_dims[1] < psf_shape[1]):
                         stamp = self.enlarge_stamp(stamp, psf_shape)
                         stamp_dims = stamp.shape
 
                     # Convolve stamp with PSF
-                    stamp = s1.fftconvolve(stamp, eval_psf, mode='same')
+                    stamp = s1.fftconvolve(stamp, eval_psf, mode="same")
 
-            elif input_type == 'galaxies':
-                xposang = self.calc_x_position_angle(entry['pos_angle'])
+            elif input_type == "galaxies":
+                xposang = self.calc_x_position_angle(entry["pos_angle"])
 
                 # First create the galaxy
-                stamp = self.create_galaxy(entry['radius'], entry['ellipticity'], entry['sersic_index'],
-                                           xposang*np.pi/180., rate, 0., 0.)
+                stamp = self.create_galaxy(
+                    entry["radius"],
+                    entry["ellipticity"],
+                    entry["sersic_index"],
+                    xposang * np.pi / 180.0,
+                    rate,
+                    0.0,
+                    0.0,
+                )
 
                 # If the stamp image is smaller than the PSF in either
                 # dimension, embed the stamp in an array that matches
@@ -1675,21 +2093,22 @@ class Catalog_seed():
                 # produce an output that includes the wings of the PSF
                 galdims = stamp.shape
                 psf_shape = eval_psf.shape
-                if ((galdims[0] < psf_shape[0]) or (galdims[1] < psf_shape[1])):
+                if (galdims[0] < psf_shape[0]) or (galdims[1] < psf_shape[1]):
                     stamp = self.enlarge_stamp(stamp, psf_shape)
                     galdims = stamp.shape
 
                 # Convolve the galaxy with the instrument PSF
-                stamp = s1.fftconvolve(stamp, eval_psf, mode='same')
+                stamp = s1.fftconvolve(stamp, eval_psf, mode="same")
 
             # Now that we have stamp images for galaxies and extended
             # sources, check to see if they overlap the detector or not.
             # NOTE: this will only catch sources that never overlap the
             # detector for any of their positions.
-            if input_type != 'point_source':
-                status = self.on_detector(x_frames, y_frames, stamp.shape,
-                                          (newdimsx, newdimsy))
-            if status == 'off':
+            if input_type != "point_source":
+                status = self.on_detector(
+                    x_frames, y_frames, stamp.shape, (newdimsx, newdimsy)
+                )
+            if status == "off":
                 continue
 
             # Each entry will have stamp image as array, ra_init, dec_init,
@@ -1710,44 +2129,68 @@ class Catalog_seed():
                 # that never overlap the aperture. Here we want to get rid
                 # of sources that overlap the detector in some integrations,
                 # but not this particular integration
-                status = 'on'
-                status = self.on_detector(x_frames[framestart:frameend],
-                                          y_frames[framestart:frameend],
-                                          stamp.shape, (newdimsx, newdimsy))
-                if status == 'off':
+                status = "on"
+                status = self.on_detector(
+                    x_frames[framestart:frameend],
+                    y_frames[framestart:frameend],
+                    stamp.shape,
+                    (newdimsx, newdimsy),
+                )
+                if status == "off":
                     continue
 
                 mt = moving_targets.MovingTarget()
                 mt.subsampx = 3
                 mt.subsampy = 3
-                mt_source = mt.create(stamp, x_frames[framestart:frameend],
-                                      y_frames[framestart:frameend],
-                                      self.frametime, newdimsx, newdimsy)
+                mt_source = mt.create(
+                    stamp,
+                    x_frames[framestart:frameend],
+                    y_frames[framestart:frameend],
+                    self.frametime,
+                    newdimsx,
+                    newdimsy,
+                )
 
                 mt_integration[integ, :, :, :] += mt_source
 
                 # Add object to segmentation map
-                moving_segmap.add_object_threshold(mt_source[-1, :, :], 0, 0, index, self.segmentation_threshold)
+                moving_segmap.add_object_threshold(
+                    mt_source[-1, :, :], 0, 0, index, self.segmentation_threshold
+                )
 
                 if add_ghosts and ghost_file is not None:
                     # Check if the ghost lands on the detector
-                    ghost_status = self.on_detector(ghost_x_frames[framestart:frameend],
-                                                    ghost_y_frames[framestart:frameend],
-                                                    ghost_stamp.shape, (newdimsx, newdimsy))
-                    if ghost_status == 'off':
+                    ghost_status = self.on_detector(
+                        ghost_x_frames[framestart:frameend],
+                        ghost_y_frames[framestart:frameend],
+                        ghost_stamp.shape,
+                        (newdimsx, newdimsy),
+                    )
+                    if ghost_status == "off":
                         continue
 
                     mt = moving_targets.MovingTarget()
                     mt.subsampx = 3
                     mt.subsampy = 3
-                    mt_ghost_source = mt.create(ghost_stamp, ghost_x_frames[framestart:frameend],
-                                          ghost_y_frames[framestart:frameend],
-                                          self.frametime, newdimsx, newdimsy)
+                    mt_ghost_source = mt.create(
+                        ghost_stamp,
+                        ghost_x_frames[framestart:frameend],
+                        ghost_y_frames[framestart:frameend],
+                        self.frametime,
+                        newdimsx,
+                        newdimsy,
+                    )
 
                     mt_integration[integ, :, :, :] += mt_ghost_source
 
                     # Add object to segmentation map
-                    moving_segmap.add_object_threshold(mt_ghost_source[-1, :, :], 0, 0, index, self.segmentation_threshold)
+                    moving_segmap.add_object_threshold(
+                        mt_ghost_source[-1, :, :],
+                        0,
+                        0,
+                        index,
+                        self.segmentation_threshold,
+                    )
 
             # Check the elapsed time for creating each object
             elapsed_time = time.time() - start_time
@@ -1755,8 +2198,14 @@ class Catalog_seed():
             if obj_counter > 3 and not time_reported:
                 avg_time = np.mean(times)
                 total_time = len(indexes) * avg_time
-                self.logger.info(("Expected time to process {} sources: {:.2f} seconds "
-                                  "({:.2f} minutes)".format(len(indexes), total_time, total_time/60)))
+                self.logger.info(
+                    (
+                        "Expected time to process {} sources: {:.2f} seconds "
+                        "({:.2f} minutes)".format(
+                            len(indexes), total_time, total_time / 60
+                        )
+                    )
+                )
                 time_reported = True
             obj_counter += 1
         return mt_integration, moving_segmap.segmap
@@ -1784,7 +2233,9 @@ class Catalog_seed():
         y_list = []
         for in_ra, in_dec in zip(ra_list, dec_list):
             # Calculate the x,y position at each frame
-            x, y, ra, dec, ra_str, dec_str = self.get_positions(in_ra, in_dec, False, 4096)
+            x, y, ra, dec, ra_str, dec_str = self.get_positions(
+                in_ra, in_dec, False, 4096
+            )
             x_list.append(x)
             y_list.append(y)
         x_list = np.array(x_list)
@@ -1850,20 +2301,24 @@ class Catalog_seed():
                  image for at least one xloc, yloc pair
             "off" -- stamp image never overlaps with final image
         """
-        status = 'on'
+        status = "on"
         stampx, stampy = stampdim
         stampminx = np.min(xloc - (stampx / 2))
         stampminy = np.min(yloc - (stampy / 2))
         stampmaxx = np.max(xloc + (stampx / 2))
         stampmaxy = np.max(yloc + (stampy / 2))
         finalx, finaly = finaldim
-        if ((stampminx > finalx) or (stampmaxx < 0) or
-           (stampminy > finaly) or (stampmaxy < 0)):
-            status = 'off'
+        if (
+            (stampminx > finalx)
+            or (stampmaxx < 0)
+            or (stampminy > finaly)
+            or (stampmaxy < 0)
+        ):
+            status = "off"
         return status
 
     def get_positions(self, input_x, input_y, pixel_flag, max_source_distance):
-        """ Given an input position ( (x,y) or (RA,Dec) ) for a source, calculate
+        """Given an input position ( (x,y) or (RA,Dec) ) for a source, calculate
         the corresponding detector (x,y), RA, Dec, and provide RA and Dec strings.
 
         Parameters
@@ -1934,7 +2389,9 @@ class Catalog_seed():
             # they can be written out into the output source list file.
             pixel_x = entry0
             pixel_y = entry1
-            ra_number, dec_number, ra_string, dec_string = self.XYToRADec(pixel_x, pixel_y)
+            ra_number, dec_number, ra_string, dec_string = self.XYToRADec(
+                pixel_x, pixel_y
+            )
 
         return pixel_x, pixel_y, ra_number, dec_number, ra_string, dec_string
 
@@ -1989,21 +2446,34 @@ class Catalog_seed():
 
         # We can only track one moving target at a time
         if len(targs) != 1:
-            raise ValueError(("Catalog of non-sidereal sources to track in {} contains "
-                              "{} sources. This catalog should contain a single source."
-                              .format(file, len(targs))))
+            raise ValueError(
+                (
+                    "Catalog of non-sidereal sources to track in {} contains "
+                    "{} sources. This catalog should contain a single source.".format(
+                        file, len(targs)
+                    )
+                )
+            )
 
         # If the ephemeris column is there but unpopulated, remove it
-        if 'ephemeris_file' in targs.colnames:
-            if targs['ephemeris_file'][0].lower() == 'none':
-                targs.remove_column('ephemeris_file')
+        if "ephemeris_file" in targs.colnames:
+            if targs["ephemeris_file"][0].lower() == "none":
+                targs.remove_column("ephemeris_file")
 
         # If an ephemeris file is given, update the RA, Dec based
         # on the ephemeris. (i.e. the input RA, Dec values will be ignored)
-        if 'ephemeris_file' in targs.colnames:
-            self.logger.info(("Setting non-sidereal source intial RA, Dec based on ephemeris "
-                              "file: {} and observation date/time.".format(file)))
-            targs, ra_interpol_function, dec_interpol_function = self.ephemeris_radec_value_at_obstime(targs)
+        if "ephemeris_file" in targs.colnames:
+            self.logger.info(
+                (
+                    "Setting non-sidereal source intial RA, Dec based on ephemeris "
+                    "file: {} and observation date/time.".format(file)
+                )
+            )
+            (
+                targs,
+                ra_interpol_function,
+                dec_interpol_function,
+            ) = self.ephemeris_radec_value_at_obstime(targs)
             track_ra_vel = None
             track_dec_vel = None
         else:
@@ -2014,8 +2484,8 @@ class Catalog_seed():
             # from the catalog. If an ephemeris file is present,
             # these will be changed in favor of the RA and Dec
             # interpolation functions
-            track_ra_vel = targs[0]['x_or_RA_velocity']
-            track_dec_vel = targs[0]['y_or_Dec_velocity']
+            track_ra_vel = targs[0]["x_or_RA_velocity"]
+            track_dec_vel = targs[0]["y_or_Dec_velocity"]
             ra_interpol_function = None
             dec_interpol_function = None
 
@@ -2025,9 +2495,9 @@ class Catalog_seed():
         galaxy_rows = []
         extended_rows = []
         for i, line in enumerate(targs):
-            if 'point' in line['object'].lower():
+            if "point" in line["object"].lower():
                 ptsrc_rows.append(i)
-            elif 'sersic' in line['object'].lower():
+            elif "sersic" in line["object"].lower():
                 galaxy_rows.append(i)
             else:
                 extended_rows.append(i)
@@ -2036,26 +2506,35 @@ class Catalog_seed():
         if len(ptsrc_rows) > 0:
             ptsrc = targs[ptsrc_rows]
             if pixFlag:
-                meta0 = 'position_pixels'
+                meta0 = "position_pixels"
             else:
-                meta0 = ''
+                meta0 = ""
             if velFlag:
-                meta1 = 'velocity_pixels'
+                meta1 = "velocity_pixels"
             else:
-                meta1 = ''
+                meta1 = ""
             meta2 = magsys
 
-            meta3 = ('Point sources with non-sidereal tracking. '
-                     'File produced by catalog_seed_image.py')
-            meta4 = ('from run using non-sidereal moving target '
-                     'list {}.'.format(self.params['simSignals']['movingTargetToTrack']))
-            ptsrc.meta['comments'] = [meta0, meta1, meta2, meta3, meta4]
-            temp_ptsrc_filename = os.path.join(self.params['Output']['directory'],
-                                               'temp_non_sidereal_point_sources.list')
-            self.logger.info(("Catalog with non-sidereal source transformed to point source catalog for the "
-                              "purposes of placing the source at the requested location. New catalog saved to: "
-                              "{}".format(temp_ptsrc_filename)))
-            ptsrc.write(temp_ptsrc_filename, format='ascii', overwrite=True)
+            meta3 = (
+                "Point sources with non-sidereal tracking. "
+                "File produced by catalog_seed_image.py"
+            )
+            meta4 = "from run using non-sidereal moving target " "list {}.".format(
+                self.params["simSignals"]["movingTargetToTrack"]
+            )
+            ptsrc.meta["comments"] = [meta0, meta1, meta2, meta3, meta4]
+            temp_ptsrc_filename = os.path.join(
+                self.params["Output"]["directory"],
+                "temp_non_sidereal_point_sources.list",
+            )
+            self.logger.info(
+                (
+                    "Catalog with non-sidereal source transformed to point source catalog for the "
+                    "purposes of placing the source at the requested location. New catalog saved to: "
+                    "{}".format(temp_ptsrc_filename)
+                )
+            )
+            ptsrc.write(temp_ptsrc_filename, format="ascii", overwrite=True)
 
             ptsrc_list, ps_ghosts_file = self.get_point_source_list(temp_ptsrc_filename)
             ptsrcCRImage, ptsrcCRSegmap = self.make_point_source_image(ptsrc_list)
@@ -2065,47 +2544,72 @@ class Catalog_seed():
             # If ghost sources are present, then create a count rate image using
             # that extended image and add it to the list
             if ps_ghosts_file is not None:
-                self.logger.info('Adding optical ghost from non-sidereal point source.')
-                ps_ghosts_cat, ps_ghosts_stamps, _ = self.getExtendedSourceList(ps_ghosts_file, ghost_search=False)
-                ps_ghosts_convolve = [self.params['simSignals']['PSFConvolveGhosts']] * len(ps_ghosts_cat)
-                ghost_cr_image, ghost_segmap = self.make_extended_source_image(ps_ghosts_cat, ps_ghosts_stamps, ps_ghosts_convolve)
+                self.logger.info("Adding optical ghost from non-sidereal point source.")
+                ps_ghosts_cat, ps_ghosts_stamps, _ = self.getExtendedSourceList(
+                    ps_ghosts_file, ghost_search=False
+                )
+                ps_ghosts_convolve = [
+                    self.params["simSignals"]["PSFConvolveGhosts"]
+                ] * len(ps_ghosts_cat)
+                ghost_cr_image, ghost_segmap = self.make_extended_source_image(
+                    ps_ghosts_cat, ps_ghosts_stamps, ps_ghosts_convolve
+                )
                 totalCRList.append(ghost_cr_image)
                 totalSegList.append(ghost_segmap)
-
 
         if len(galaxy_rows) > 0:
             galaxies = targs[galaxy_rows]
             if pixFlag:
-                meta0 = 'position_pixels'
+                meta0 = "position_pixels"
             else:
-                meta0 = ''
+                meta0 = ""
             if velFlag:
-                meta1 = 'velocity_pixels'
+                meta1 = "velocity_pixels"
             else:
-                meta1 = ''
+                meta1 = ""
             meta2 = magsys
-            meta3 = ('Galaxies (2d sersic profiles) with non-sidereal '
-                     'tracking. File produced by ramp_simulator.py')
-            meta4 = ('from run using non-sidereal moving target '
-                     'list {}.'.format(self.params['simSignals']['movingTargetToTrack']))
-            galaxies.meta['comments'] = [meta0, meta1, meta2, meta3, meta4]
-            temp_gal_filename = os.path.join(self.params['Output']['directory'], 'temp_non_sidereal_sersic_sources.list')
-            self.logger.info(("Catalog with non-sidereal source transformed to galaxy catalog for the "
-                              "purposes of placing the source at the requested location. New catalog saved to: "
-                              "{}".format(temp_gal_filename)))
-            galaxies.write(temp_gal_filename, format='ascii', overwrite=True)
+            meta3 = (
+                "Galaxies (2d sersic profiles) with non-sidereal "
+                "tracking. File produced by ramp_simulator.py"
+            )
+            meta4 = "from run using non-sidereal moving target " "list {}.".format(
+                self.params["simSignals"]["movingTargetToTrack"]
+            )
+            galaxies.meta["comments"] = [meta0, meta1, meta2, meta3, meta4]
+            temp_gal_filename = os.path.join(
+                self.params["Output"]["directory"],
+                "temp_non_sidereal_sersic_sources.list",
+            )
+            self.logger.info(
+                (
+                    "Catalog with non-sidereal source transformed to galaxy catalog for the "
+                    "purposes of placing the source at the requested location. New catalog saved to: "
+                    "{}".format(temp_gal_filename)
+                )
+            )
+            galaxies.write(temp_gal_filename, format="ascii", overwrite=True)
 
-            galaxyCRImage, galaxySegmap, gal_ghosts_file = self.make_galaxy_image(temp_gal_filename)
+            galaxyCRImage, galaxySegmap, gal_ghosts_file = self.make_galaxy_image(
+                temp_gal_filename
+            )
             totalCRList.append(galaxyCRImage)
             totalSegList.append(galaxySegmap)
 
             # If ghost sources are present, then create a count rate image using
             # that extended image and add it to the list
             if gal_ghosts_file is not None:
-                self.logger.info('Adding optical ghost from non-sidereal galaxy source.')
-                gal_ghosts_cat, gal_ghosts_stamps, _ = self.getExtendedSourceList(gal_ghosts_file, ghost_search=False)
-                gal_ghosts_convolve = [self.params['simSignals']['PSFConvolveGhosts']] * len(gal_ghosts_cat)
-                ghost_cr_image, ghost_segmap = self.make_extended_source_image(gal_ghosts_cat, gal_ghosts_stamps, gal_ghosts_convolve)
+                self.logger.info(
+                    "Adding optical ghost from non-sidereal galaxy source."
+                )
+                gal_ghosts_cat, gal_ghosts_stamps, _ = self.getExtendedSourceList(
+                    gal_ghosts_file, ghost_search=False
+                )
+                gal_ghosts_convolve = [
+                    self.params["simSignals"]["PSFConvolveGhosts"]
+                ] * len(gal_ghosts_cat)
+                ghost_cr_image, ghost_segmap = self.make_extended_source_image(
+                    gal_ghosts_cat, gal_ghosts_stamps, gal_ghosts_convolve
+                )
                 totalCRList.append(ghost_cr_image)
                 totalSegList.append(ghost_segmap)
 
@@ -2113,31 +2617,43 @@ class Catalog_seed():
             extended = targs[extended_rows]
 
             if pixFlag:
-                meta0 = 'position_pixels'
+                meta0 = "position_pixels"
             else:
-                meta0 = ''
+                meta0 = ""
             if velFlag:
-                meta1 = 'velocity_pixels'
+                meta1 = "velocity_pixels"
             else:
-                meta1 = ''
+                meta1 = ""
             meta2 = magsys
-            meta3 = 'Extended sources with non-sidereal tracking. File produced by ramp_simulator.py'
-            meta4 = 'from run using non-sidereal moving target list {}.'.format(self.params['simSignals']['movingTargetToTrack'])
-            extended.meta['comments'] = [meta0, meta1, meta2, meta3, meta4]
-            temp_ext_filename = os.path.join(self.params['Output']['directory'],
-                                               'temp_non_sidereal_extended_sources.list')
-            self.logger.info(("Catalog with non-sidereal source transformed to extended source catalog for the "
-                              "purposes of placing the source at the requested location. New catalog saved to: "
-                              "{}".format(temp_ext_filename)))
-            extended.write(temp_ext_filename, format='ascii', overwrite=True)
+            meta3 = "Extended sources with non-sidereal tracking. File produced by ramp_simulator.py"
+            meta4 = "from run using non-sidereal moving target list {}.".format(
+                self.params["simSignals"]["movingTargetToTrack"]
+            )
+            extended.meta["comments"] = [meta0, meta1, meta2, meta3, meta4]
+            temp_ext_filename = os.path.join(
+                self.params["Output"]["directory"],
+                "temp_non_sidereal_extended_sources.list",
+            )
+            self.logger.info(
+                (
+                    "Catalog with non-sidereal source transformed to extended source catalog for the "
+                    "purposes of placing the source at the requested location. New catalog saved to: "
+                    "{}".format(temp_ext_filename)
+                )
+            )
+            extended.write(temp_ext_filename, format="ascii", overwrite=True)
 
-            extlist, extstamps, ext_ghosts_file = self.getExtendedSourceList(temp_ext_filename, ghost_search=True)
+            extlist, extstamps, ext_ghosts_file = self.getExtendedSourceList(
+                temp_ext_filename, ghost_search=True
+            )
             if len(extlist) > 0:
-                conv = [self.params['simSignals']['PSFConvolveExtended']] * len(extlist)
-                extCRImage, extSegmap = self.make_extended_source_image(extlist, extstamps, conv)
+                conv = [self.params["simSignals"]["PSFConvolveExtended"]] * len(extlist)
+                extCRImage, extSegmap = self.make_extended_source_image(
+                    extlist, extstamps, conv
+                )
             else:
                 yd, xd = self.output_dims
-                #extCRImage = np.zeros((self.params['Readout']['nint'], self.frames_per_integration, yd, xd))
+                # extCRImage = np.zeros((self.params['Readout']['nint'], self.frames_per_integration, yd, xd))
                 extCRImage = np.zeros((yd, xd))
                 extSegmap = np.zeros((yd, xd)).astype(np.int64)
 
@@ -2147,10 +2663,18 @@ class Catalog_seed():
             # If ghost sources are present, then create a count rate image using
             # that extended image and add it to the list
             if ext_ghosts_file is not None:
-                self.logger.info('Adding optical ghost from non-sidereal extended source.')
-                ext_ghosts_cat, ext_ghosts_stamps, _ = self.getExtendedSourceList(ext_ghosts_file, ghost_search=False)
-                ext_ghosts_convolve = [self.params['simSignals']['PSFConvolveGhosts']] * len(ext_ghosts_cat)
-                ghost_cr_image, ghost_segmap = self.make_extended_source_image(ext_ghosts_cat, ext_ghosts_stamps, ext_ghosts_convolve)
+                self.logger.info(
+                    "Adding optical ghost from non-sidereal extended source."
+                )
+                ext_ghosts_cat, ext_ghosts_stamps, _ = self.getExtendedSourceList(
+                    ext_ghosts_file, ghost_search=False
+                )
+                ext_ghosts_convolve = [
+                    self.params["simSignals"]["PSFConvolveGhosts"]
+                ] * len(ext_ghosts_cat)
+                ghost_cr_image, ghost_segmap = self.make_extended_source_image(
+                    ext_ghosts_cat, ext_ghosts_stamps, ext_ghosts_convolve
+                )
                 totalCRList.append(ghost_cr_image)
                 totalSegList.append(ghost_segmap)
 
@@ -2163,9 +2687,18 @@ class Catalog_seed():
                     totalCRImage += totalCRList[i]
                     totalSegmap += totalSegList[i] + i
         else:
-            raise ValueError(("No non-sidereal countrate targets produced."
-                              "You shouldn't be here."))
-        return totalCRImage, totalSegmap, track_ra_vel, track_dec_vel, velFlag, ra_interpol_function, dec_interpol_function
+            raise ValueError(
+                ("No non-sidereal countrate targets produced." "You shouldn't be here.")
+            )
+        return (
+            totalCRImage,
+            totalSegmap,
+            track_ra_vel,
+            track_dec_vel,
+            velFlag,
+            ra_interpol_function,
+            dec_interpol_function,
+        )
 
     def ephemeris_radec_value_at_obstime(self, src_catalog):
         """Calculate the RA, Dec of the target at the observation time
@@ -2192,38 +2725,56 @@ class Catalog_seed():
         """
         # In this block we now assume a single target in the catalog
         # (or that ```src_catalog``` is a single row)
-        ob_time = '{}T{}'.format(self.params['Output']['date_obs'], self.params['Output']['time_obs'])
+        ob_time = "{}T{}".format(
+            self.params["Output"]["date_obs"], self.params["Output"]["time_obs"]
+        )
 
         # Allow time_obs to have an integer or fractional number of seconds
         try:
-            start_date = [ephemeris_tools.to_timestamp(datetime.datetime.strptime(ob_time, '%Y-%m-%dT%H:%M:%S'))]
+            start_date = [
+                ephemeris_tools.to_timestamp(
+                    datetime.datetime.strptime(ob_time, "%Y-%m-%dT%H:%M:%S")
+                )
+            ]
         except ValueError:
-            start_date = [ephemeris_tools.to_timestamp(datetime.datetime.strptime(ob_time, '%Y-%m-%dT%H:%M:%S.%f'))]
+            start_date = [
+                ephemeris_tools.to_timestamp(
+                    datetime.datetime.strptime(ob_time, "%Y-%m-%dT%H:%M:%S.%f")
+                )
+            ]
 
-        self.logger.info(('Calculating target RA, Dec at the observation time using ephemeris file: {}'
-                          .format(src_catalog['ephemeris_file'][0])))
-        ra_eph, dec_eph = ephemeris_tools.get_ephemeris(src_catalog['ephemeris_file'][0])
+        self.logger.info(
+            (
+                "Calculating target RA, Dec at the observation time using ephemeris file: {}".format(
+                    src_catalog["ephemeris_file"][0]
+                )
+            )
+        )
+        ra_eph, dec_eph = ephemeris_tools.get_ephemeris(
+            src_catalog["ephemeris_file"][0]
+        )
 
         # If the input x_or_RA and y_or_Dec columns have values of 'none', then
         # populating them with the values calculated here results in truncated
         # values being used. So let's remove the old columns and re-add them
-        src_catalog.remove_column('x_or_RA')
-        src_catalog.remove_column('y_or_Dec')
-        src_catalog.add_column(ra_eph(start_date), name='x_or_RA', index=1)
-        src_catalog.add_column(dec_eph(start_date), name='y_or_Dec', index=2)
+        src_catalog.remove_column("x_or_RA")
+        src_catalog.remove_column("y_or_Dec")
+        src_catalog.add_column(ra_eph(start_date), name="x_or_RA", index=1)
+        src_catalog.add_column(dec_eph(start_date), name="y_or_Dec", index=2)
         return src_catalog, ra_eph, dec_eph
 
     def create_sidereal_image(self):
         # Generate a signal rate image from input sources
-        if (self.params['Output']['grism_source_image'] == False) and (not self.params['Inst']['mode'] in ["pom", "wfss"]):
+        if (self.params["Output"]["grism_source_image"] == False) and (
+            not self.params["Inst"]["mode"] in ["pom", "wfss"]
+        ):
             signalimage = np.zeros(self.nominal_dims)
             segmentation_map = np.zeros(self.nominal_dims)
         else:
             signalimage = np.zeros(self.output_dims, dtype=np.float)
             segmentation_map = np.zeros(self.output_dims)
 
-
-        instrument_name = self.params['Inst']['instrument'].lower()
+        instrument_name = self.params["Inst"]["instrument"].lower()
         # yd, xd = signalimage.shape
         arrayshape = signalimage.shape
 
@@ -2231,37 +2782,57 @@ class Catalog_seed():
         # Read in the list of point sources to add
         # Adjust point source locations using astrometric distortion
         # Translate magnitudes to counts in a single frame
-        if self.runStep['pointsource'] is True:
+        if self.runStep["pointsource"] is True:
             if not self.expand_catalog_for_segments:
 
                 # CHECK IN INPUT PSF FILE IF THERE'S A BORESIGHT OFFSET TO BE APPLIED:
                 offset_vector = None
-                infile = glob.glob(os.path.join(self.params['simSignals']['psfpath'], "{}_{}_{}*.fits".format(self.params['Inst']['instrument'].lower(), self.detector.lower(), self.psf_filter.lower())))
+                infile = glob.glob(
+                    os.path.join(
+                        self.params["simSignals"]["psfpath"],
+                        "{}_{}_{}*.fits".format(
+                            self.params["Inst"]["instrument"].lower(),
+                            self.detector.lower(),
+                            self.psf_filter.lower(),
+                        ),
+                    )
+                )
                 if len(infile) > 0:
                     header = fits.getheader(infile[0])
-                    if ('BSOFF_V2' in header) and ('BSOFF_V3' in header):
-                        offset_vector = header['BSOFF_V2']*60., header['BSOFF_V3']*60. #convert to arcseconds
+                    if ("BSOFF_V2" in header) and ("BSOFF_V3" in header):
+                        offset_vector = (
+                            header["BSOFF_V2"] * 60.0,
+                            header["BSOFF_V3"] * 60.0,
+                        )  # convert to arcseconds
                 else:
-                    self.logger.info("No PSF library matching '{}_{}_{}.fits'; ignoring boresight offset (if any)".format(self.params['Inst']['instrument'].lower(), self.detector.lower(), self.psf_filter.lower()))
+                    self.logger.info(
+                        "No PSF library matching '{}_{}_{}.fits'; ignoring boresight offset (if any)".format(
+                            self.params["Inst"]["instrument"].lower(),
+                            self.detector.lower(),
+                            self.psf_filter.lower(),
+                        )
+                    )
 
                 # Translate the point source list into an image
-                self.logger.info('Creating point source lists')
-                pslist, ps_ghosts_cat = self.get_point_source_list(self.params['simSignals']['pointsource'],
-                                                                   segment_offset=offset_vector)
+                self.logger.info("Creating point source lists")
+                pslist, ps_ghosts_cat = self.get_point_source_list(
+                    self.params["simSignals"]["pointsource"],
+                    segment_offset=offset_vector,
+                )
 
                 psfimage, ptsrc_segmap = self.make_point_source_image(pslist)
 
                 # If ghost sources are present, then make sure Mirage will retrieve
                 # sources from an extended source catalog
                 if ps_ghosts_cat is not None:
-                    self.runStep['extendedsource'] = True
+                    self.runStep["extendedsource"] = True
                     # Currently self.ghosts_catalogs is only used later for WFSS observations
                     self.ghost_catalogs.append(ps_ghosts_cat)
 
             elif self.expand_catalog_for_segments:
                 # Expand the point source list for each mirror segment, and add together
                 # the 18 point source images that used different PSFs.
-                self.logger.info('Expanding the source catalog for 18 mirror segments')
+                self.logger.info("Expanding the source catalog for 18 mirror segments")
 
                 # Create empty image and segmentation map
                 ptsrc_segmap = segmap.SegMap()
@@ -2270,29 +2841,47 @@ class Catalog_seed():
                 psfimage = np.zeros(self.output_dims)
 
                 library_list = get_segment_library_list(
-                    self.params['Inst']['instrument'].lower(), self.detector, self.psf_filter,
-                    self.params['simSignals']['psfpath'], pupil=self.psf_pupil
+                    self.params["Inst"]["instrument"].lower(),
+                    self.detector,
+                    self.psf_filter,
+                    self.params["simSignals"]["psfpath"],
+                    pupil=self.psf_pupil,
                 )
                 for i_segment in np.arange(1, 19):
-                    self.logger.info('\nCalculating point source lists for segment {}'.format(i_segment))
+                    self.logger.info(
+                        "\nCalculating point source lists for segment {}".format(
+                            i_segment
+                        )
+                    )
                     # Get the RA/Dec offset that matches the given segment
-                    offset_vector = get_segment_offset(i_segment, self.detector, library_list)
+                    offset_vector = get_segment_offset(
+                        i_segment, self.detector, library_list
+                    )
 
                     # need to add a new offset option to get_point_source_list:
-                    pslist, _ = self.get_point_source_list(self.params['simSignals']['pointsource'],
-                                                           segment_offset=offset_vector)
+                    pslist, _ = self.get_point_source_list(
+                        self.params["simSignals"]["pointsource"],
+                        segment_offset=offset_vector,
+                    )
 
                     # Create a point source image, using the specific point
                     # source list and PSF for the given segment
-                    seg_psfimage, ptsrc_segmap = self.make_point_source_image(pslist, segment_number=i_segment,
-                                                                              ptsrc_segmap=ptsrc_segmap)
+                    seg_psfimage, ptsrc_segmap = self.make_point_source_image(
+                        pslist, segment_number=i_segment, ptsrc_segmap=ptsrc_segmap
+                    )
 
-                    if self.params['Output']['save_intermediates'] is True:
-                        seg_psfImageName = self.basename + '_pointSourceRateImage_seg{:02d}.fits'.format(i_segment)
+                    if self.params["Output"]["save_intermediates"] is True:
+                        seg_psfImageName = (
+                            self.basename
+                            + "_pointSourceRateImage_seg{:02d}.fits".format(i_segment)
+                        )
                         h0 = fits.PrimaryHDU(seg_psfimage)
                         h0.writeto(seg_psfImageName, overwrite=True)
-                        self.logger.info("    Segment {} point source image and segmap saved as {}".format(i_segment,
-                                                                                                           seg_psfImageName))
+                        self.logger.info(
+                            "    Segment {} point source image and segmap saved as {}".format(
+                                i_segment, seg_psfImageName
+                            )
+                        )
 
                     psfimage += seg_psfimage
 
@@ -2311,16 +2900,29 @@ class Catalog_seed():
             # For seed images to be dispersed in WFSS mode,
             # embed the seed image in a full frame array. The disperser
             # tool does not work on subarrays
-            aperture_suffix = self.params['Readout']['array_name'].split('_')[-1]
+            aperture_suffix = self.params["Readout"]["array_name"].split("_")[-1]
 
             # Save the point source seed image
-            if instrument_name != 'fgs':
-                self.ptsrc_seed_filename = '{}_{}_{}_ptsrc_seed_image.fits'.format(self.basename, self.params['Readout']['filter'],
-                                                                                   self.params['Readout']['pupil'])
+            if instrument_name != "fgs":
+                self.ptsrc_seed_filename = "{}_{}_{}_ptsrc_seed_image.fits".format(
+                    self.basename,
+                    self.params["Readout"]["filter"],
+                    self.params["Readout"]["pupil"],
+                )
             else:
-                self.ptsrc_seed_filename = '{}_ptsrc_seed_image.fits'.format(self.basename)
-            self.saveSeedImage(self.point_source_seed, self.point_source_seg_map, self.ptsrc_seed_filename)
-            self.logger.info("Point source image and segmap saved as {}".format(self.ptsrc_seed_filename))
+                self.ptsrc_seed_filename = "{}_ptsrc_seed_image.fits".format(
+                    self.basename
+                )
+            self.saveSeedImage(
+                self.point_source_seed,
+                self.point_source_seg_map,
+                self.ptsrc_seed_filename,
+            )
+            self.logger.info(
+                "Point source image and segmap saved as {}".format(
+                    self.ptsrc_seed_filename
+                )
+            )
 
         else:
             self.point_source_seed = None
@@ -2331,13 +2933,15 @@ class Catalog_seed():
         # Simulated galaxies
         # Read in the list of galaxy positions/magnitudes to simulate
         # and create a countrate image of those galaxies.
-        if self.runStep['galaxies'] is True:
-            galaxyCRImage, galaxy_segmap, gal_ghosts_cat = self.make_galaxy_image(self.params['simSignals']['galaxyListFile'])
+        if self.runStep["galaxies"] is True:
+            galaxyCRImage, galaxy_segmap, gal_ghosts_cat = self.make_galaxy_image(
+                self.params["simSignals"]["galaxyListFile"]
+            )
 
             # If ghost sources are present, then make sure Mirage will retrieve
             # sources from an extended source catalog
             if gal_ghosts_cat is not None:
-                self.runStep['extendedsource'] = True
+                self.runStep["extendedsource"] = True
                 # Currently self.ghosts_catalogs is only used later for WFSS observations
                 self.ghost_catalogs.append(gal_ghosts_cat)
 
@@ -2350,19 +2954,34 @@ class Catalog_seed():
             # For seed images to be dispersed in WFSS mode,
             # embed the seed image in a full frame array. The disperser
             # tool does not work on subarrays
-            aperture_suffix = self.params['Readout']['array_name'].split('_')[-1]
+            aperture_suffix = self.params["Readout"]["array_name"].split("_")[-1]
 
             # Save the galaxy source seed image
-            if instrument_name != 'fgs':
-                self.galaxy_seed_filename = '{}_{}_{}_galaxy_seed_image.fits'.format(self.basename, self.params['Readout']['filter'],
-                                                                                     self.params['Readout']['pupil'])
+            if instrument_name != "fgs":
+                self.galaxy_seed_filename = "{}_{}_{}_galaxy_seed_image.fits".format(
+                    self.basename,
+                    self.params["Readout"]["filter"],
+                    self.params["Readout"]["pupil"],
+                )
             else:
-                self.galaxy_seed_filename = '{}_galaxy_seed_image.fits'.format(self.basename)
-            self.saveSeedImage(self.galaxy_source_seed, self.galaxy_source_seg_map, self.galaxy_seed_filename)
-            self.logger.info("Simulated galaxy image and segmap saved as {}".format(self.galaxy_seed_filename))
+                self.galaxy_seed_filename = "{}_galaxy_seed_image.fits".format(
+                    self.basename
+                )
+            self.saveSeedImage(
+                self.galaxy_source_seed,
+                self.galaxy_source_seg_map,
+                self.galaxy_seed_filename,
+            )
+            self.logger.info(
+                "Simulated galaxy image and segmap saved as {}".format(
+                    self.galaxy_seed_filename
+                )
+            )
 
             # Add galaxy segmentation map to the master copy
-            segmentation_map = self.add_segmentation_maps(segmentation_map, galaxy_segmap)
+            segmentation_map = self.add_segmentation_maps(
+                segmentation_map, galaxy_segmap
+            )
 
             # add the galaxy image to the signalimage
             signalimage = signalimage + galaxyCRImage
@@ -2374,11 +2993,17 @@ class Catalog_seed():
             gal_ghosts_cat = None
 
         # read in extended signal image and add the image to the overall image
-        if self.runStep['extendedsource'] is True:
+        if self.runStep["extendedsource"] is True:
             # Extended sources from user-provided catalog
-            if self.params['simSignals']['extended'] != 'None':
-                extended_list, extended_stamps, ext_ghosts_cat = self.getExtendedSourceList(self.params['simSignals']['extended'])
-                extended_convolve = [self.params['simSignals']['PSFConvolveExtended']] * len(extended_list)
+            if self.params["simSignals"]["extended"] != "None":
+                (
+                    extended_list,
+                    extended_stamps,
+                    ext_ghosts_cat,
+                ) = self.getExtendedSourceList(self.params["simSignals"]["extended"])
+                extended_convolve = [
+                    self.params["simSignals"]["PSFConvolveExtended"]
+                ] * len(extended_list)
             else:
                 extended_list = None
                 extended_stamps = None
@@ -2392,9 +3017,17 @@ class Catalog_seed():
             # Ghosts associated with point source catalog
             # Don't search for ghosts from ghosts
             if ps_ghosts_cat is not None:
-                self.logger.info('Reading in optical ghost list from sidereal point source catalog.')
-                extlist_from_ps_ghosts, extstamps_from_ps_ghosts, _ = self.getExtendedSourceList(ps_ghosts_cat, ghost_search=False)
-                ps_ghosts_convolve = [self.params['simSignals']['PSFConvolveGhosts']] * len(extlist_from_ps_ghosts)
+                self.logger.info(
+                    "Reading in optical ghost list from sidereal point source catalog."
+                )
+                (
+                    extlist_from_ps_ghosts,
+                    extstamps_from_ps_ghosts,
+                    _,
+                ) = self.getExtendedSourceList(ps_ghosts_cat, ghost_search=False)
+                ps_ghosts_convolve = [
+                    self.params["simSignals"]["PSFConvolveGhosts"]
+                ] * len(extlist_from_ps_ghosts)
             else:
                 extlist_from_ps_ghosts = None
                 extstamps_from_ps_ghosts = None
@@ -2403,9 +3036,17 @@ class Catalog_seed():
             # Ghosts associated with galaxy catalog
             # Don't search for ghosts from ghosts
             if gal_ghosts_cat is not None:
-                self.logger.info('Reading in optical ghost list from sidereal galaxy source catalog.')
-                extlist_from_gal_ghosts, extstamps_from_gal_ghosts, _ = self.getExtendedSourceList(gal_ghosts_cat, ghost_search=False)
-                gal_ghosts_convolve = [self.params['simSignals']['PSFConvolveGhosts']] * len(extlist_from_gal_ghosts)
+                self.logger.info(
+                    "Reading in optical ghost list from sidereal galaxy source catalog."
+                )
+                (
+                    extlist_from_gal_ghosts,
+                    extstamps_from_gal_ghosts,
+                    _,
+                ) = self.getExtendedSourceList(gal_ghosts_cat, ghost_search=False)
+                gal_ghosts_convolve = [
+                    self.params["simSignals"]["PSFConvolveGhosts"]
+                ] * len(extlist_from_gal_ghosts)
             else:
                 extlist_from_gal_ghosts = None
                 extstamps_from_gal_ghosts = None
@@ -2414,28 +3055,53 @@ class Catalog_seed():
             # Ghosts associated with the extended source catalog
             # Don't search for ghosts from ghosts
             if ext_ghosts_cat is not None:
-                self.logger.info('Reading in optical ghost list from sidereal extended source catalog.')
-                extlist_from_ext_ghosts, extstamps_from_ext_ghosts, _ = self.getExtendedSourceList(ext_ghosts_cat, ghost_search=False)
-                ext_ghosts_convolve = [self.params['simSignals']['PSFConvolveGhosts']] * len(extlist_from_ext_ghosts)
+                self.logger.info(
+                    "Reading in optical ghost list from sidereal extended source catalog."
+                )
+                (
+                    extlist_from_ext_ghosts,
+                    extstamps_from_ext_ghosts,
+                    _,
+                ) = self.getExtendedSourceList(ext_ghosts_cat, ghost_search=False)
+                ext_ghosts_convolve = [
+                    self.params["simSignals"]["PSFConvolveGhosts"]
+                ] * len(extlist_from_ext_ghosts)
             else:
                 extlist_from_ext_ghosts = None
                 extstamps_from_ext_ghosts = None
                 ext_ghosts_convolve = None
 
-            possible_cats = [extended_list, extlist_from_ps_ghosts, extlist_from_gal_ghosts, extlist_from_ext_ghosts]
+            possible_cats = [
+                extended_list,
+                extlist_from_ps_ghosts,
+                extlist_from_gal_ghosts,
+                extlist_from_ext_ghosts,
+            ]
             extended_cats = [ele for ele in possible_cats if ele is not None]
             extlist = vstack(extended_cats)
 
-            possible_stamps = [extended_stamps, extstamps_from_ps_ghosts, extstamps_from_gal_ghosts, extstamps_from_ext_ghosts]
+            possible_stamps = [
+                extended_stamps,
+                extstamps_from_ps_ghosts,
+                extstamps_from_gal_ghosts,
+                extstamps_from_ext_ghosts,
+            ]
             extended_stamps = [ele for ele in possible_stamps if ele is not None]
             extstamps = [item for ele in extended_stamps for item in ele]
 
-            possible_convolutions = [extended_convolve, ps_ghosts_convolve, gal_ghosts_convolve, ext_ghosts_convolve]
+            possible_convolutions = [
+                extended_convolve,
+                ps_ghosts_convolve,
+                gal_ghosts_convolve,
+                ext_ghosts_convolve,
+            ]
             convolutions = [ele for ele in possible_convolutions if ele is not None]
             convols = [item for ele in convolutions for item in ele]
 
             # translate the extended source list into an image
-            extimage, ext_segmap = self.make_extended_source_image(extlist, extstamps, convols)
+            extimage, ext_segmap = self.make_extended_source_image(
+                extlist, extstamps, convols
+            )
 
             # To avoid problems with overlapping sources between source
             # types in observations to be dispersed, make the point
@@ -2446,16 +3112,31 @@ class Catalog_seed():
             # For seed images to be dispersed in WFSS mode,
             # embed the seed image in a full frame array. The disperser
             # tool does not work on subarrays
-            aperture_suffix = self.params['Readout']['array_name'].split('_')[-1]
+            aperture_suffix = self.params["Readout"]["array_name"].split("_")[-1]
 
             # Save the extended source seed image
-            if instrument_name != 'fgs':
-                self.extended_seed_filename = '{}_{}_{}_extended_seed_image.fits'.format(self.basename, self.params['Readout']['filter'],
-                                                                                         self.params['Readout']['pupil'])
+            if instrument_name != "fgs":
+                self.extended_seed_filename = (
+                    "{}_{}_{}_extended_seed_image.fits".format(
+                        self.basename,
+                        self.params["Readout"]["filter"],
+                        self.params["Readout"]["pupil"],
+                    )
+                )
             else:
-                self.extended_seed_filename = '{}_extended_seed_image.fits'.format(self.basename)
-            self.saveSeedImage(self.extended_source_seed, self.extended_source_seg_map, self.extended_seed_filename)
-            self.logger.info("Extended object image and segmap saved as {}".format(self.extended_seed_filename))
+                self.extended_seed_filename = "{}_extended_seed_image.fits".format(
+                    self.basename
+                )
+            self.saveSeedImage(
+                self.extended_source_seed,
+                self.extended_source_seg_map,
+                self.extended_seed_filename,
+            )
+            self.logger.info(
+                "Extended object image and segmap saved as {}".format(
+                    self.extended_seed_filename
+                )
+            )
 
             # Add galaxy segmentation map to the master copy
             segmentation_map = self.add_segmentation_maps(segmentation_map, ext_segmap)
@@ -2469,43 +3150,75 @@ class Catalog_seed():
             self.extended_seed_filename = None
 
         # ZODIACAL LIGHT
-        if self.runStep['zodiacal'] is True:
-            self.logger.warning(("\n\nWARNING: A file has been provided for a zodiacal light contribution "
-                   "but zodi is included in the background addition in imaging/imaging TSO modes "
-                   "if bkgdrate is set to low/medium/high, or for any WFSS/Grism TSO observations.\n\n"))
+        if self.runStep["zodiacal"] is True:
+            self.logger.warning(
+                (
+                    "\n\nWARNING: A file has been provided for a zodiacal light contribution "
+                    "but zodi is included in the background addition in imaging/imaging TSO modes "
+                    "if bkgdrate is set to low/medium/high, or for any WFSS/Grism TSO observations.\n\n"
+                )
+            )
             # zodiangle = self.eclipticangle() - self.params['Telescope']['rotation']
-            zodiangle = self.params['Telescope']['rotation']
-            zodiacalimage, zodiacalheader = self.getImage(self.params['simSignals']['zodiacal'], arrayshape, True, zodiangle, arrayshape/2)
+            zodiangle = self.params["Telescope"]["rotation"]
+            zodiacalimage, zodiacalheader = self.getImage(
+                self.params["simSignals"]["zodiacal"],
+                arrayshape,
+                True,
+                zodiangle,
+                arrayshape / 2,
+            )
 
             # If the zodi image is not the same shape as the transmission
             # image, raise an exception. In the future we can make this more
             # flexible
             if zodiacalimage.shape != self.transmission_image.shape:
-                raise IndexError("Zodiacal light image must have the same shape as the transmission image: {}".format(self.transmission_image.shape))
+                raise IndexError(
+                    "Zodiacal light image must have the same shape as the transmission image: {}".format(
+                        self.transmission_image.shape
+                    )
+                )
 
-            signalimage = signalimage + zodiacalimage*self.params['simSignals']['zodiscale']
+            signalimage = (
+                signalimage + zodiacalimage * self.params["simSignals"]["zodiscale"]
+            )
 
         # SCATTERED LIGHT - no rotation here.
-        if self.runStep['scattered']:
-            scatteredimage, scatteredheader = self.getImage(self.params['simSignals']['scattered'],
-                                                            arrayshape, False, 0.0, arrayshape/2)
+        if self.runStep["scattered"]:
+            scatteredimage, scatteredheader = self.getImage(
+                self.params["simSignals"]["scattered"],
+                arrayshape,
+                False,
+                0.0,
+                arrayshape / 2,
+            )
 
             # If the scattered light image is not the same shape as the transmission
             # image, raise an exception. In the future we can make this more
             # flexible
             if scatteredimage.shape != self.transmission_image.shape:
-                raise IndexError("Scattered light image must have the same shape as the transmission image: {}".format(self.transmission_image.shape))
+                raise IndexError(
+                    "Scattered light image must have the same shape as the transmission image: {}".format(
+                        self.transmission_image.shape
+                    )
+                )
 
-            signalimage = signalimage + scatteredimage*self.params['simSignals']['scatteredscale']
+            signalimage = (
+                signalimage
+                + scatteredimage * self.params["simSignals"]["scatteredscale"]
+            )
 
         # CONSTANT BACKGROUND - multiply by transmission image
-        signalimage = signalimage + self.params['simSignals']['bkgdrate']
+        signalimage = signalimage + self.params["simSignals"]["bkgdrate"]
 
         # Save the final rate image of added signals
-        if self.params['Output']['save_intermediates'] is True:
-            rateImageName = self.basename + '_AddedSources_adu_per_sec.fits'
+        if self.params["Output"]["save_intermediates"] is True:
+            rateImageName = self.basename + "_AddedSources_adu_per_sec.fits"
             self.saveSingleFits(signalimage, rateImageName)
-            self.logger.info("Signal rate image of all added sources saved as {}".format(rateImageName))
+            self.logger.info(
+                "Signal rate image of all added sources saved as {}".format(
+                    rateImageName
+                )
+            )
 
         return signalimage, segmentation_map
 
@@ -2533,7 +3246,9 @@ class Catalog_seed():
         combined[map1_zeros] += map2[map1_zeros]
         return combined
 
-    def get_point_source_list(self, filename, source_type='pointsources', segment_offset=None):
+    def get_point_source_list(
+        self, filename, source_type="pointsources", segment_offset=None
+    ):
         """Read in the list of point sources to add, calculate positions
         on the detector, filter out sources outside the detector, and
         calculate countrates corresponding to the given magnitudes
@@ -2560,40 +3275,60 @@ class Catalog_seed():
             ghost sources associated with the point sources in ```pointSourceList```
         """
         # Make sure that a valid PSF path has been provided
-        if not os.path.isdir(self.params['simSignals']['psfpath']):
-            raise ValueError('Invalid PSF path provided in YAML:',
-                             self.params['simSignals']['psfpath'])
+        if not os.path.isdir(self.params["simSignals"]["psfpath"]):
+            raise ValueError(
+                "Invalid PSF path provided in YAML:",
+                self.params["simSignals"]["psfpath"],
+            )
 
-        pointSourceList = Table(names=('index', 'pixelx', 'pixely', 'RA', 'Dec', 'RA_degrees',
-                                       'Dec_degrees', 'magnitude', 'countrate_e/s',
-                                       'counts_per_frame_e', 'lightcurve_file'),
-                                dtype=('i', 'f', 'f', 'S14', 'S14', 'f', 'f', 'f', 'f', 'f', 'S50'))
+        pointSourceList = Table(
+            names=(
+                "index",
+                "pixelx",
+                "pixely",
+                "RA",
+                "Dec",
+                "RA_degrees",
+                "Dec_degrees",
+                "magnitude",
+                "countrate_e/s",
+                "counts_per_frame_e",
+                "lightcurve_file",
+            ),
+            dtype=("i", "f", "f", "S14", "S14", "f", "f", "f", "f", "f", "S50"),
+        )
 
         try:
             lines, pixelflag, magsys = self.read_point_source_file(filename)
             if pixelflag:
-                self.logger.info("Point source list input positions assumed to be in units of pixels.")
+                self.logger.info(
+                    "Point source list input positions assumed to be in units of pixels."
+                )
             else:
-                self.logger.info("Point list input positions assumed to be in units of RA and Dec.")
+                self.logger.info(
+                    "Point list input positions assumed to be in units of RA and Dec."
+                )
         except:
-            raise NameError("WARNING: Unable to open the point source list file {}".format(filename))
+            raise NameError(
+                "WARNING: Unable to open the point source list file {}".format(filename)
+            )
 
         # Create table of point source countrate versus psf size
         if self.add_psf_wings is True:
             self.translate_psf_table(magsys)
 
         # File to save adjusted point source locations
-        psfile = self.params['Output']['file'][0:-5] + '_{}.list'.format(source_type)
-        pslist = open(psfile, 'w')
+        psfile = self.params["Output"]["file"][0:-5] + "_{}.list".format(source_type)
+        pslist = open(psfile, "w")
 
         # Get source index numbers
-        indexes = lines['index']
+        indexes = lines["index"]
 
-        dtor = math.radians(1.)
+        dtor = math.radians(1.0)
         nx = (self.subarray_bounds[2] - self.subarray_bounds[0]) + 1
         ny = (self.subarray_bounds[3] - self.subarray_bounds[1]) + 1
-        xc = (self.subarray_bounds[2] + self.subarray_bounds[0]) / 2.
-        yc = (self.subarray_bounds[3] + self.subarray_bounds[1]) / 2.
+        xc = (self.subarray_bounds[2] + self.subarray_bounds[0]) / 2.0
+        yc = (self.subarray_bounds[3] + self.subarray_bounds[1]) / 2.0
 
         # Define the min and max source locations (in pixels) that fall onto the subarray
         # Include the effects of a requested grism_direct image, and also keep sources that
@@ -2607,7 +3342,9 @@ class Catalog_seed():
         maxx = self.subarray_bounds[2] - self.subarray_bounds[0]
 
         # Expand the limits if a grism direct image is being made
-        if (self.params['Output']['grism_source_image'] == True) or (self.params['Inst']['mode'] in ["pom", "wfss"]):
+        if (self.params["Output"]["grism_source_image"] == True) or (
+            self.params["Inst"]["mode"] in ["pom", "wfss"]
+        ):
             transmission_ydim, transmission_xdim = self.transmission_image.shape
             miny = miny - self.subarray_bounds[1] - self.trans_ff_ymin
             minx = minx - self.subarray_bounds[0] - self.trans_ff_xmin
@@ -2618,12 +3355,20 @@ class Catalog_seed():
 
         # Write out the RA and Dec of the field center to the output file
         # Also write out column headers to prepare for source list
-        pslist.write(("# Field center (degrees): %13.8f %14.8f y axis rotation angle "
-                      "(degrees): %f  image size: %4.4d %4.4d\n" %
-                      (self.ra, self.dec, self.params['Telescope']['rotation'], nx, ny)))
-        pslist.write('#\n')
-        pslist.write(("#    Index   RA_(hh:mm:ss)   DEC_(dd:mm:ss)   RA_degrees      "
-                      "DEC_degrees     pixel_x   pixel_y    magnitude   counts/sec    counts/frame    TSO_lightcurve_catalog\n"))
+        pslist.write(
+            (
+                "# Field center (degrees): %13.8f %14.8f y axis rotation angle "
+                "(degrees): %f  image size: %4.4d %4.4d\n"
+                % (self.ra, self.dec, self.params["Telescope"]["rotation"], nx, ny)
+            )
+        )
+        pslist.write("#\n")
+        pslist.write(
+            (
+                "#    Index   RA_(hh:mm:ss)   DEC_(dd:mm:ss)   RA_degrees      "
+                "DEC_degrees     pixel_x   pixel_y    magnitude   counts/sec    counts/frame    TSO_lightcurve_catalog\n"
+            )
+        )
 
         # If creating a segment-wise simulation, shift all of the RAs/Decs in
         # the list by the given offset
@@ -2633,17 +3378,26 @@ class Catalog_seed():
         # Check the source list and remove any sources that are well outside the
         # field of view of the detector. These sources cause the coordinate
         # conversion to hang.
-        self.logger.info('Filtering point sources to keep only those on the detector')
-        indexes, lines = self.remove_outside_fov_sources(indexes, lines, pixelflag, 4096)
+        self.logger.info("Filtering point sources to keep only those on the detector")
+        indexes, lines = self.remove_outside_fov_sources(
+            indexes, lines, pixelflag, 4096
+        )
 
         # Determine the name of the column to use for source magnitudes
         mag_column = self.select_magnitude_column(lines, filename)
 
         # For NIRISS observations where ghosts will be added, create a table to hold
         # the ghost entries
-        if self.params['Inst']['instrument'].lower() == 'niriss' and self.params['simSignals']['add_ghosts']:
-            self.logger.info("Creating a source list of optical ghosts from point sources.")
-            ghost_source_index = []  # Maps index number of original source to ghost source
+        if (
+            self.params["Inst"]["instrument"].lower() == "niriss"
+            and self.params["simSignals"]["add_ghosts"]
+        ):
+            self.logger.info(
+                "Creating a source list of optical ghosts from point sources."
+            )
+            ghost_source_index = (
+                []
+            )  # Maps index number of original source to ghost source
             ghost_x = []
             ghost_y = []
             ghost_filename = []
@@ -2662,21 +3416,37 @@ class Catalog_seed():
             else:
                 log_ghost_err = False
 
-            pixelx, pixely, ra, dec, ra_str, dec_str = self.get_positions(values['x_or_RA'],
-                                                                          values['y_or_Dec'],
-                                                                          pixelflag, 4096)
+            pixelx, pixely, ra, dec, ra_str, dec_str = self.get_positions(
+                values["x_or_RA"], values["y_or_Dec"], pixelflag, 4096
+            )
 
             # Get the input magnitude and countrate of the point source
             mag = float(values[mag_column])
-            countrate = utils.magnitude_to_countrate(self.instrument, self.params['Readout']['filter'],
-                                                     magsys, mag, photfnu=self.photfnu, photflam=self.photflam,
-                                                     vegamag_zeropoint=self.vegazeropoint)
+            countrate = utils.magnitude_to_countrate(
+                self.instrument,
+                self.params["Readout"]["filter"],
+                magsys,
+                mag,
+                photfnu=self.photfnu,
+                photflam=self.photflam,
+                vegamag_zeropoint=self.vegazeropoint,
+            )
 
             # If this is a NIRISS simulation and the user wants to add ghosts,
             # do that here.
-            if self.params['Inst']['instrument'].lower() == 'niriss' and self.params['simSignals']['add_ghosts']:
-                gx, gy, gmag, gcounts, gfile = self.locate_ghost(pixelx, pixely, countrate, magsys, values, 'point_source',
-                                                                 log_skipped_filters=log_ghost_err)
+            if (
+                self.params["Inst"]["instrument"].lower() == "niriss"
+                and self.params["simSignals"]["add_ghosts"]
+            ):
+                gx, gy, gmag, gcounts, gfile = self.locate_ghost(
+                    pixelx,
+                    pixely,
+                    countrate,
+                    magsys,
+                    values,
+                    "point_source",
+                    log_skipped_filters=log_ghost_err,
+                )
                 if np.isfinite(gx) and gfile is not None:
                     ghost_source_index.append(index)
                     ghost_x.append(gx)
@@ -2684,8 +3454,14 @@ class Catalog_seed():
                     ghost_mag.append(gmag)
                     ghost_filename.append(gfile)
 
-                    ghost_src, skipped_non_niriss = source_mags_to_ghost_mags(values, self.params['Reffiles']['flux_cal'],
-                                                                              magsys, NIRISS_GHOST_GAP_FILE, self.params['Readout']['filter'], log_skipped_filters=False)
+                    ghost_src, skipped_non_niriss = source_mags_to_ghost_mags(
+                        values,
+                        self.params["Reffiles"]["flux_cal"],
+                        magsys,
+                        NIRISS_GHOST_GAP_FILE,
+                        self.params["Readout"]["filter"],
+                        log_skipped_filters=False,
+                    )
 
                     if ghost_mags is None:
                         ghost_mags = copy.deepcopy(ghost_src)
@@ -2700,7 +3476,12 @@ class Catalog_seed():
             edgex = np.int(psf_len // 2)
             edgey = np.int(psf_len // 2)
 
-            if pixely > (miny-edgey) and pixely < (maxy+edgey) and pixelx > (minx-edgex) and pixelx < (maxx+edgex):
+            if (
+                pixely > (miny - edgey)
+                and pixely < (maxy + edgey)
+                and pixelx > (minx - edgex)
+                and pixelx < (maxx + edgex)
+            ):
                 # set up an entry for the output table
                 entry = [index, pixelx, pixely, ra_str, dec_str, ra, dec, mag]
 
@@ -2713,25 +3494,51 @@ class Catalog_seed():
                 entry.append(framecounts)
 
                 # Add the TSO catalog name if present
-                if source_type == 'ts_imaging':
-                    tso_catalog = values['lightcurve_file']
+                if source_type == "ts_imaging":
+                    tso_catalog = values["lightcurve_file"]
                 else:
-                    tso_catalog = 'None'
+                    tso_catalog = "None"
                 entry.append(tso_catalog)
 
                 # add the good point source, including location and counts, to the pointSourceList
                 pointSourceList.add_row(entry)
 
                 # write out positions, distances, and counts to the output file
-                pslist.write("%i %s %s %14.8f %14.8f %9.3f %9.3f  %9.3f  %13.6e   %13.6e  %s\n" %
-                             (index, ra_str, dec_str, ra, dec, pixelx, pixely, mag, countrate, framecounts, tso_catalog))
+                pslist.write(
+                    "%i %s %s %14.8f %14.8f %9.3f %9.3f  %9.3f  %13.6e   %13.6e  %s\n"
+                    % (
+                        index,
+                        ra_str,
+                        dec_str,
+                        ra,
+                        dec,
+                        pixelx,
+                        pixely,
+                        mag,
+                        countrate,
+                        framecounts,
+                        tso_catalog,
+                    )
+                )
 
-        if self.params['Inst']['instrument'].lower() == 'niriss' and self.params['simSignals']['add_ghosts'] and skipped_non_niriss:
-            self.logger.info("Skipped the calculation of ghost source magnitudes for the non-NIRISS magnitude columns in {}".format(filename))
+        if (
+            self.params["Inst"]["instrument"].lower() == "niriss"
+            and self.params["simSignals"]["add_ghosts"]
+            and skipped_non_niriss
+        ):
+            self.logger.info(
+                "Skipped the calculation of ghost source magnitudes for the non-NIRISS magnitude columns in {}".format(
+                    filename
+                )
+            )
 
         self.n_pointsources = len(pointSourceList)
         if self.n_pointsources > 0:
-            self.logger.info("Number of point sources found within or close to the requested aperture: {}".format(self.n_pointsources))
+            self.logger.info(
+                "Number of point sources found within or close to the requested aperture: {}".format(
+                    self.n_pointsources
+                )
+            )
         else:
             self.logger.info("\nNo point sources present on the detector.")
 
@@ -2739,8 +3546,18 @@ class Catalog_seed():
         pslist.close()
 
         # If any ghost sources were found, create an extended catalog object to hold them
-        if self.params['Inst']['instrument'].lower() == 'niriss' and self.params['simSignals']['add_ghosts']:
-            ghosts_from_ptsrc = self.save_ghost_catalog(ghost_x, ghost_y, ghost_filename, ghost_mags, filename, ghost_source_index)
+        if (
+            self.params["Inst"]["instrument"].lower() == "niriss"
+            and self.params["simSignals"]["add_ghosts"]
+        ):
+            ghosts_from_ptsrc = self.save_ghost_catalog(
+                ghost_x,
+                ghost_y,
+                ghost_filename,
+                ghost_mags,
+                filename,
+                ghost_source_index,
+            )
         else:
             ghosts_from_ptsrc = None
 
@@ -2764,11 +3581,16 @@ class Catalog_seed():
         magnitudes = self.psf_wing_sizes[magnitude_system].data
 
         # Calculate corresponding countrates
-        countrates = utils.magnitude_to_countrate(self.instrument, self.params['Readout']['filter'],
-                                                  magnitude_system, magnitudes, photfnu=self.photfnu,
-                                                  photflam=self.photflam,
-                                                  vegamag_zeropoint=self.vegazeropoint)
-        self.psf_wing_sizes['countrate'] = countrates
+        countrates = utils.magnitude_to_countrate(
+            self.instrument,
+            self.params["Readout"]["filter"],
+            magnitude_system,
+            magnitudes,
+            photfnu=self.photfnu,
+            photflam=self.photflam,
+            vegamag_zeropoint=self.vegazeropoint,
+        )
+        self.psf_wing_sizes["countrate"] = countrates
 
     def find_psf_size(self, countrate):
         """Determine the dimentions of the PSF to use based on an object's
@@ -2790,31 +3612,37 @@ class Catalog_seed():
         if self.add_psf_wings is False:
             return self.psf_library_core_x_dim
 
-        brighter = np.where(countrate >= self.psf_wing_sizes['countrate'])[0]
+        brighter = np.where(countrate >= self.psf_wing_sizes["countrate"])[0]
         if len(brighter) == 0:
             # Dimmest bin == size of pf library
             dimension = self.psf_library_core_x_dim
-            #dim = np.max(self.psf_wing_sizes['number_of_pixels'])
+            # dim = np.max(self.psf_wing_sizes['number_of_pixels'])
         else:
-            dimension = self.psf_wing_sizes['number_of_pixels'][brighter[0]]
+            dimension = self.psf_wing_sizes["number_of_pixels"][brighter[0]]
         return dimension
 
     def shift_sources_by_offset(self, lines, segment_offset, pixelflag):
-        self.logger.info('    Shifting point source locations by arcsecond offset {}'.format(segment_offset))
+        self.logger.info(
+            "    Shifting point source locations by arcsecond offset {}".format(
+                segment_offset
+            )
+        )
 
         shifted_lines = lines.copy()
         shifted_lines.remove_rows(np.arange(0, len(shifted_lines)))
 
         V2ref_arcsec = self.siaf.V2Ref
         V3ref_arcsec = self.siaf.V3Ref
-        position_angle = self.params['Telescope']['rotation']
-        self.logger.info(' Position angle = {}'.format(position_angle))
-        attitude_ref = pysiaf.utils.rotations.attitude(V2ref_arcsec, V3ref_arcsec, self.ra, self.dec, position_angle)
+        position_angle = self.params["Telescope"]["rotation"]
+        self.logger.info(" Position angle = {}".format(position_angle))
+        attitude_ref = pysiaf.utils.rotations.attitude(
+            V2ref_arcsec, V3ref_arcsec, self.ra, self.dec, position_angle
+        )
 
         # Shift every source by the appropriate offset
         x_displacement_arcsec, y_displacement_arcsec = segment_offset
         for line in lines:
-            x_or_RA, y_or_Dec = line['x_or_RA', 'y_or_Dec']
+            x_or_RA, y_or_Dec = line["x_or_RA", "y_or_Dec"]
             # Convert the input source locations to V2/V3
             if not pixelflag:
                 # Convert RA/Dec (sky frame) to V2/V3 (telescope frame)
@@ -2830,8 +3658,8 @@ class Catalog_seed():
             # Translate back to RA/Dec and save
             ra, dec = pysiaf.utils.rotations.pointing(attitude_ref, v2, v3)
 
-            mag_cols = [col for col in line.colnames if 'magnitude' in col]
-            collist = [line['index']]
+            mag_cols = [col for col in line.colnames if "magnitude" in col]
+            collist = [line["index"]]
             collist.extend([ra, dec])
             collist.extend(line[mag_cols])
             shifted_lines.add_row(collist)
@@ -2869,17 +3697,22 @@ class Catalog_seed():
         source : Table
             astropy Table containing filtered list of sources
         """
-        catalog_x = source['x_or_RA']
-        catalog_y = source['y_or_Dec']
+        catalog_x = source["x_or_RA"]
+        catalog_y = source["y_or_Dec"]
 
         if pixflag:
             minx = 0 - delta_pixels
             maxx = self.output_dims[1] + delta_pixels
             miny = 0 - delta_pixels
             maxy = self.output_dims[0] + delta_pixels
-            good = ((catalog_x > minx) & (catalog_x < maxx) & (catalog_y > miny) & (catalog_y < maxy))
+            good = (
+                (catalog_x > minx)
+                & (catalog_x < maxx)
+                & (catalog_y > miny)
+                & (catalog_y < maxy)
+            )
         else:
-            delta_degrees = (delta_pixels * self.siaf.XSciScale) / 3600. * u.deg
+            delta_degrees = (delta_pixels * self.siaf.XSciScale) / 3600.0 * u.deg
             reference = SkyCoord(ra=self.ra * u.deg, dec=self.dec * u.deg)
 
             # Need to determine the units of the RA values.
@@ -2892,24 +3725,28 @@ class Catalog_seed():
                 ra_unit = u.deg
             except ValueError:
                 # if it cannot be converted to a float, then the unit is 'hour'
-                ra_unit = 'hour'
+                ra_unit = "hour"
 
             # Temporarily replace any input positions that are None or N/A
             # with dummy values. This will allow users to supply an ephemeris
             # file and not have to add in RA, Dec numbers, which could be
             # confusing and which are ignored by Mirage anyway.
-            allowed_dummy_values = ['none', 'n/a']
+            allowed_dummy_values = ["none", "n/a"]
             for i, row in enumerate(source):
-                #if isinstance(row['x_or_RA'], str) and isinstance(row['y_or_Dec'], str):
-                if row['x_or_RA'] == np.nan or row['y_or_Dec'] == np.nan:
-                    if 'ephemeris_file' in row.colnames:
-                        if row['ephemeris_file'].lower != 'none':
-                            catalog_x[i] = 0.
-                            catalog_y[i] = 0.
+                # if isinstance(row['x_or_RA'], str) and isinstance(row['y_or_Dec'], str):
+                if row["x_or_RA"] == np.nan or row["y_or_Dec"] == np.nan:
+                    if "ephemeris_file" in row.colnames:
+                        if row["ephemeris_file"].lower != "none":
+                            catalog_x[i] = 0.0
+                            catalog_y[i] = 0.0
                         else:
-                            raise ValueError('Source catalog contains x, y or RA, Dec positions that are not numbers.')
+                            raise ValueError(
+                                "Source catalog contains x, y or RA, Dec positions that are not numbers."
+                            )
                     else:
-                        raise ValueError('Source catalog contains x, y or RA, Dec positions that are not numbers.')
+                        raise ValueError(
+                            "Source catalog contains x, y or RA, Dec positions that are not numbers."
+                        )
 
             # Assume that units are consisent within each column. (i.e. no mixing of
             # 12h:23m:34.5s and 189.87463 degrees within a column)
@@ -2920,8 +3757,14 @@ class Catalog_seed():
             # an ephemeris file as good. Regardless of the RA, Dec values in
             # the catalog at this point, the true RA, Dec values will be calculated
             # from the ephemeris
-            if 'ephemeris_file' in source.colnames:
-                good_eph = np.array([i for i, row in enumerate(source) if row['ephemeris_file'].lower() != 'none'])
+            if "ephemeris_file" in source.colnames:
+                good_eph = np.array(
+                    [
+                        i
+                        for i, row in enumerate(source)
+                        if row["ephemeris_file"].lower() != "none"
+                    ]
+                )
                 good = np.array(list(set(np.append(good, good_eph))))
                 good = [int(ele) for ele in good]
 
@@ -2930,7 +3773,9 @@ class Catalog_seed():
 
         return filtered_indexes, filtered_sources
 
-    def make_point_source_image(self, pointSources, segment_number=None, ptsrc_segmap=None):
+    def make_point_source_image(
+        self, pointSources, segment_number=None, ptsrc_segmap=None
+    ):
         """Create a seed image containing all of the point sources
         provided by the source catalog
 
@@ -2972,14 +3817,18 @@ class Catalog_seed():
             self.timer.start()
 
             # Find the PSF size to use based on the countrate
-            psf_x_dim = self.find_psf_size(entry['countrate_e/s'])
+            psf_x_dim = self.find_psf_size(entry["countrate_e/s"])
 
             # Assume same PSF size in x and y
             psf_y_dim = psf_x_dim
 
             scaled_psf, min_x, min_y, wings_added = self.create_psf_stamp(
-                entry['pixelx'], entry['pixely'], psf_x_dim, psf_y_dim,
-                segment_number=segment_number, ignore_detector=True
+                entry["pixelx"],
+                entry["pixely"],
+                psf_x_dim,
+                psf_y_dim,
+                segment_number=segment_number,
+                ignore_detector=True,
             )
 
             # Skip sources that fall completely off the detector
@@ -2987,7 +3836,7 @@ class Catalog_seed():
                 self.timer.stop()
                 continue
 
-            scaled_psf *= entry['countrate_e/s']
+            scaled_psf *= entry["countrate_e/s"]
 
             # PSF may not be centered in array now if part of the array falls
             # off of the aperture
@@ -3000,19 +3849,31 @@ class Catalog_seed():
             # We also need to shift the location of the wing array on the
             # detector by 1
             if wings_added:
-                x_delta = int(np.modf(entry['pixelx'])[0] > 0.5)
-                y_delta = int(np.modf(entry['pixely'])[0] > 0.5)
+                x_delta = int(np.modf(entry["pixelx"])[0] > 0.5)
+                y_delta = int(np.modf(entry["pixely"])[0] > 0.5)
             else:
                 x_delta = 0
                 y_delta = 0
 
             # Get the coordinates that describe the overlap between the
             # PSF image and the output aperture
-            xap, yap, xpts, ypts, (i1, i2), (j1, j2), (k1, k2), \
-                (l1, l2) = self.create_psf_stamp_coords(entry['pixelx']+x_delta, entry['pixely']+y_delta,
-                                                        updated_psf_dimensions,
-                                                        stamp_x_loc, stamp_y_loc,
-                                                        coord_sys='aperture')
+            (
+                xap,
+                yap,
+                xpts,
+                ypts,
+                (i1, i2),
+                (j1, j2),
+                (k1, k2),
+                (l1, l2),
+            ) = self.create_psf_stamp_coords(
+                entry["pixelx"] + x_delta,
+                entry["pixely"] + y_delta,
+                updated_psf_dimensions,
+                stamp_x_loc,
+                stamp_y_loc,
+                coord_sys="aperture",
+            )
 
             # Skip sources that fall completely off the detector
             if None in [i1, i2, j1, j2, k1, k2, l1, l2]:
@@ -3026,14 +3887,16 @@ class Catalog_seed():
                 psfimage[j1:j2, i1:i2] += psf_to_add
 
                 # Add source to segmentation map
-                ptsrc_segmap.add_object_threshold(psf_to_add, j1, i1, entry['index'], self.segmentation_threshold)
+                ptsrc_segmap.add_object_threshold(
+                    psf_to_add, j1, i1, entry["index"], self.segmentation_threshold
+                )
 
-                if self.params['Inst']['mode'] in DISPERSED_MODES:
+                if self.params["Inst"]["mode"] in DISPERSED_MODES:
                     # Add source to seed cube file
                     stamp = np.zeros(psf_to_add.shape)
                     flag = psf_to_add >= self.segmentation_threshold
-                    stamp[flag] = entry['index']
-                    seed_cube[entry['index']] = [i1, j1, psf_to_add*1, stamp*1]
+                    stamp[flag] = entry["index"]
+                    seed_cube[entry["index"]] = [i1, j1, psf_to_add * 1, stamp * 1]
             except IndexError:
                 # In here we catch sources that are off the edge
                 # of the detector. These may not necessarily be caught in
@@ -3043,26 +3906,49 @@ class Catalog_seed():
                 pass
 
             # Stop timer
-            self.timer.stop(name='ptsrc_{}'.format(str(i).zfill(6)))
+            self.timer.stop(name="ptsrc_{}".format(str(i).zfill(6)))
 
             # If there are more than 100 point sources, provide an estimate of processing time
             if len(pointSources) > 100:
-                if ((i == 20) or ((i > 0) and (np.mod(i, 100) == 0))):
-                    time_per_ptsrc = self.timer.sum(key_str='ptsrc_') / (i+1)
-                    estimated_remaining_time = time_per_ptsrc * (len(pointSources) - (i+1)) * u.second
-                    time_remaining = np.around(estimated_remaining_time.to(u.minute).value, decimals=2)
-                    finish_time = datetime.datetime.now() + datetime.timedelta(minutes=time_remaining)
-                    self.logger.info(('Working on source #{}. Estimated time remaining to add all point sources to the stamp image: {} minutes. '
-                                      'Projected finish time: {}'.format(i, time_remaining, finish_time)))
+                if (i == 20) or ((i > 0) and (np.mod(i, 100) == 0)):
+                    time_per_ptsrc = self.timer.sum(key_str="ptsrc_") / (i + 1)
+                    estimated_remaining_time = (
+                        time_per_ptsrc * (len(pointSources) - (i + 1)) * u.second
+                    )
+                    time_remaining = np.around(
+                        estimated_remaining_time.to(u.minute).value, decimals=2
+                    )
+                    finish_time = datetime.datetime.now() + datetime.timedelta(
+                        minutes=time_remaining
+                    )
+                    self.logger.info(
+                        (
+                            "Working on source #{}. Estimated time remaining to add all point sources to the stamp image: {} minutes. "
+                            "Projected finish time: {}".format(
+                                i, time_remaining, finish_time
+                            )
+                        )
+                    )
 
-        if self.params['Inst']['mode'] in DISPERSED_MODES:
+        if self.params["Inst"]["mode"] in DISPERSED_MODES:
             # Save the seed cube file of point sources
-            pickle.dump(seed_cube, open("%s_star_seed_cube.pickle" % (self.basename), "wb"), protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump(
+                seed_cube,
+                open("%s_star_seed_cube.pickle" % (self.basename), "wb"),
+                protocol=pickle.HIGHEST_PROTOCOL,
+            )
 
         return psfimage, ptsrc_segmap
 
-    def create_psf_stamp(self, x_location, y_location, psf_dim_x, psf_dim_y,
-                         ignore_detector=False, segment_number=None):
+    def create_psf_stamp(
+        self,
+        x_location,
+        y_location,
+        psf_dim_x,
+        psf_dim_y,
+        ignore_detector=False,
+        segment_number=None,
+    ):
         """From the gridded PSF model, location within the aperture, and
         dimensions of the stamp image (either the library PSF image, or
         the galaxy/extended stamp image with which the PSF will be
@@ -3126,7 +4012,7 @@ class Catalog_seed():
         # This assumes a square PSF shape!!!!
         # If no wings are to be added, then we can skip all the wing-
         # and pixel phase-related work below.
-        if ((self.add_psf_wings is False) or (delta_core_to_wing_x <= 0)):
+        if (self.add_psf_wings is False) or (delta_core_to_wing_x <= 0):
             add_wings = False
 
             if segment_number is not None:
@@ -3140,19 +4026,33 @@ class Catalog_seed():
             # to evaluate the library
             # Note that we don't care about the pixel phase here.
             psf_core_dims = (self.psf_library_core_y_dim, self.psf_library_core_x_dim)
-            xc_core, yc_core, xpts_core, ypts_core, (i1c, i2c), (j1c, j2c), (k1c, k2c), \
-                (l1c, l2c) = self.create_psf_stamp_coords(x_location, y_location, psf_core_dims,
-                                                          psf_core_half_width_x, psf_core_half_width_y,
-                                                          coord_sys='full_frame',
-                                                          ignore_detector=ignore_detector)
+            (
+                xc_core,
+                yc_core,
+                xpts_core,
+                ypts_core,
+                (i1c, i2c),
+                (j1c, j2c),
+                (k1c, k2c),
+                (l1c, l2c),
+            ) = self.create_psf_stamp_coords(
+                x_location,
+                y_location,
+                psf_core_dims,
+                psf_core_half_width_x,
+                psf_core_half_width_y,
+                coord_sys="full_frame",
+                ignore_detector=ignore_detector,
+            )
 
             # Skip sources that fall completely off the detector
             if None in [i1c, i2c, j1c, j2c, k1c, k2c, l1c, l2c]:
                 return None, None, None, False
 
             # Step 4
-            full_psf = library.evaluate(x=xpts_core, y=ypts_core, flux=1.0,
-                                        x_0=xc_core, y_0=yc_core)
+            full_psf = library.evaluate(
+                x=xpts_core, y=ypts_core, flux=1.0, x_0=xc_core, y_0=yc_core
+            )
             k1 = k1c
             l1 = l1c
 
@@ -3181,15 +4081,33 @@ class Catalog_seed():
             offset_x = np.int((full_wing_x_dim - psf_dim_x) / 2)
             offset_y = np.int((full_wing_y_dim - psf_dim_y) / 2)
 
-            full_psf = copy.deepcopy(self.psf_wings[offset_y:offset_y+psf_dim_y, offset_x:offset_x+psf_dim_x])
+            full_psf = copy.deepcopy(
+                self.psf_wings[
+                    offset_y : offset_y + psf_dim_y, offset_x : offset_x + psf_dim_x
+                ]
+            )
 
             # Get coordinates describing overlap between PSF image and the
             # full frame of the detector
             # Step 1
-            xcenter, ycenter, xpts, ypts, (i1, i2), (j1, j2), (k1, k2), \
-                (l1, l2) = self.create_psf_stamp_coords(x_location+x_location_delta, y_location+y_location_delta,
-                                                        (psf_dim_y, psf_dim_x), psf_x_loc, psf_y_loc,
-                                                        coord_sys='full_frame', ignore_detector=ignore_detector)
+            (
+                xcenter,
+                ycenter,
+                xpts,
+                ypts,
+                (i1, i2),
+                (j1, j2),
+                (k1, k2),
+                (l1, l2),
+            ) = self.create_psf_stamp_coords(
+                x_location + x_location_delta,
+                y_location + y_location_delta,
+                (psf_dim_y, psf_dim_x),
+                psf_x_loc,
+                psf_y_loc,
+                coord_sys="full_frame",
+                ignore_detector=ignore_detector,
+            )
 
             if None in [i1, i2, j1, j2, k1, k2, l1, l2]:
                 return None, None, None, False
@@ -3197,10 +4115,12 @@ class Catalog_seed():
             # Step 2
             # If the core of the psf lands at least partially on the detector
             # then we need to evaluate the psf library
-            if ((k1 < (psf_wing_half_width_x + psf_core_half_width_x)) and
-               (k2 > (psf_wing_half_width_x - psf_core_half_width_x)) and
-               (l1 < (psf_wing_half_width_y + psf_core_half_width_y)) and
-               (l2 > (psf_wing_half_width_y - psf_core_half_width_y))):
+            if (
+                (k1 < (psf_wing_half_width_x + psf_core_half_width_x))
+                and (k2 > (psf_wing_half_width_x - psf_core_half_width_x))
+                and (l1 < (psf_wing_half_width_y + psf_core_half_width_y))
+                and (l2 > (psf_wing_half_width_y - psf_core_half_width_y))
+            ):
 
                 # Step 3
                 # Get coordinates decribing overlap between the evaluated psf
@@ -3208,18 +4128,36 @@ class Catalog_seed():
                 # the xpts_core and ypts_core from this in order to know how
                 # to evaluate the library
                 # Note that we don't care about the pixel phase here.
-                psf_core_dims = (self.psf_library_core_y_dim, self.psf_library_core_x_dim)
-                xc_core, yc_core, xpts_core, ypts_core, (i1c, i2c), (j1c, j2c), (k1c, k2c), \
-                    (l1c, l2c) = self.create_psf_stamp_coords(x_location, y_location, psf_core_dims,
-                                                              psf_core_half_width_x, psf_core_half_width_y,
-                                                              coord_sys='full_frame', ignore_detector=ignore_detector)
+                psf_core_dims = (
+                    self.psf_library_core_y_dim,
+                    self.psf_library_core_x_dim,
+                )
+                (
+                    xc_core,
+                    yc_core,
+                    xpts_core,
+                    ypts_core,
+                    (i1c, i2c),
+                    (j1c, j2c),
+                    (k1c, k2c),
+                    (l1c, l2c),
+                ) = self.create_psf_stamp_coords(
+                    x_location,
+                    y_location,
+                    psf_core_dims,
+                    psf_core_half_width_x,
+                    psf_core_half_width_y,
+                    coord_sys="full_frame",
+                    ignore_detector=ignore_detector,
+                )
 
                 if None in [i1c, i2c, j1c, j2c, k1c, k2c, l1c, l2c]:
                     return None, None, None, False
 
                 # Step 4
-                psf = self.psf_library.evaluate(x=xpts_core, y=ypts_core, flux=1.,
-                                                x_0=xc_core, y_0=yc_core)
+                psf = self.psf_library.evaluate(
+                    x=xpts_core, y=ypts_core, flux=1.0, x_0=xc_core, y_0=yc_core
+                )
 
                 # Step 5
                 wing_start_x = k1c + delta_core_to_wing_x
@@ -3235,8 +4173,16 @@ class Catalog_seed():
 
         return full_psf, k1, l1, add_wings
 
-    def create_psf_stamp_coords(self, aperture_x, aperture_y, stamp_dims, stamp_x, stamp_y,
-                                coord_sys='full_frame', ignore_detector=False):
+    def create_psf_stamp_coords(
+        self,
+        aperture_x,
+        aperture_y,
+        stamp_dims,
+        stamp_x,
+        stamp_y,
+        coord_sys="full_frame",
+        ignore_detector=False,
+    ):
         """Calculate the coordinates in the aperture coordinate system
         where the stamp image wil be placed based on the location of the
         stamp image in the aperture and the size of the stamp image.
@@ -3301,14 +4247,14 @@ class Catalog_seed():
             Beginning and ending y coordinates (in the stamp's coordinate
             system) that overlap the aperture
         """
-        if coord_sys == 'full_frame':
+        if coord_sys == "full_frame":
             xpos = aperture_x + self.subarray_bounds[0]
             ypos = aperture_y + self.subarray_bounds[1]
             out_dims_x = self.ffsize
             out_dims_y = self.ffsize
-        elif coord_sys == 'aperture':
-            xpos = aperture_x + self.coord_adjust['xoffset']
-            ypos = aperture_y + self.coord_adjust['yoffset']
+        elif coord_sys == "aperture":
+            xpos = aperture_x + self.coord_adjust["xoffset"]
+            ypos = aperture_y + self.coord_adjust["yoffset"]
             out_dims_x = self.output_dims[1]
             out_dims_y = self.output_dims[0]
 
@@ -3316,9 +4262,15 @@ class Catalog_seed():
 
         # Get coordinates that describe the overlap between the stamp
         # and the aperture
-        (i1, i2, j1, j2, k1, k2, l1, l2) = self.cropped_coords(xpos, ypos, (out_dims_y, out_dims_x),
-                                                               stamp_x, stamp_y, stamp_dims,
-                                                               ignore_detector=ignore_detector)
+        (i1, i2, j1, j2, k1, k2, l1, l2) = self.cropped_coords(
+            xpos,
+            ypos,
+            (out_dims_y, out_dims_x),
+            stamp_x,
+            stamp_y,
+            stamp_dims,
+            ignore_detector=ignore_detector,
+        )
 
         # If the stamp is completely off the detector, use dummy arrays
         # for x_points and y_points
@@ -3384,8 +4336,16 @@ class Catalog_seed():
         y_max = np.int(y_center) + y_half_width + 1
         return x_min, x_max, y_min, y_max
 
-    def cropped_coords(self, aperture_x, aperture_y, aperture_dims, stamp_x, stamp_y, stamp_dims,
-                       ignore_detector=False):
+    def cropped_coords(
+        self,
+        aperture_x,
+        aperture_y,
+        aperture_dims,
+        stamp_x,
+        stamp_y,
+        stamp_dims,
+        ignore_detector=False,
+    ):
         """Given the location of a source on the detector along with the size of
         the PSF/stamp image for that object, calcuate the limits of the detector
         coordinates onto which the object will fall.
@@ -3467,7 +4427,7 @@ class Catalog_seed():
 
         if ((i1 > (aperture_x_dim)) or (j1 > (aperture_y_dim))) and not ignore_detector:
             # In this case the stamp does not overlap the aperture at all
-            return tuple([None]*8)
+            return tuple([None] * 8)
         delta_i1 = 0
         delta_j1 = 0
 
@@ -3484,7 +4444,7 @@ class Catalog_seed():
 
         if ((i2 < 0) or (j2 < 0)) and not ignore_detector:
             # Stamp does not overlap the aperture at all
-            return tuple([None]*8)
+            return tuple([None] * 8)
 
         delta_i2 = 0
         delta_j2 = 0
@@ -3503,8 +4463,8 @@ class Catalog_seed():
         return (i1, i2, j1, j2, k1, k2, l1, l2)
 
     def cropPSF(self, psf):
-        '''take an array containing a psf and crop it such that the brightest
-        pixel is in the center of the array'''
+        """take an array containing a psf and crop it such that the brightest
+        pixel is in the center of the array"""
         nyshift, nxshift = np.where(psf == np.max(psf))
         nyshift = nyshift[0]
         nxshift = nxshift[0]
@@ -3524,7 +4484,9 @@ class Catalog_seed():
         if yr < yl:
             ydist = yr
 
-        return psf[nyshift - ydist:nyshift + ydist + 1, nxshift - xdist:nxshift + xdist + 1]
+        return psf[
+            nyshift - ydist : nyshift + ydist + 1, nxshift - xdist : nxshift + xdist + 1
+        ]
 
     def read_point_source_file(self, filename):
         """Read in the point source catalog file
@@ -3552,20 +4514,24 @@ class Catalog_seed():
             # are in units of pixels or RA, Dec
             pflag = False
             try:
-                if 'position_pixels' in gtab.meta['comments'][0:4]:
+                if "position_pixels" in gtab.meta["comments"][0:4]:
                     pflag = True
             except:
                 pass
             # Check to see if magnitude system is specified
             # in the comments. If not default to AB mag
-            msys = 'abmag'
-            condition = ('stmag' in gtab.meta['comments'][0:4]) | ('vegamag' in gtab.meta['comments'][0:4])
+            msys = "abmag"
+            condition = ("stmag" in gtab.meta["comments"][0:4]) | (
+                "vegamag" in gtab.meta["comments"][0:4]
+            )
             if condition:
-                msys = [l for l in gtab.meta['comments'][0:4] if 'mag' in l][0]
+                msys = [l for l in gtab.meta["comments"][0:4] if "mag" in l][0]
                 msys = msys.lower()
 
         except:
-            raise IOError("WARNING: Unable to open the source list file {}".format(filename))
+            raise IOError(
+                "WARNING: Unable to open the source list file {}".format(filename)
+            )
 
         return gtab, pflag, msys
 
@@ -3592,15 +4558,17 @@ class Catalog_seed():
             The name of the catalog column to use for source magnitudes
         """
         # Determine the filter name to look for
-        if self.params['Inst']['instrument'].lower() == 'nircam':
-            actual_pupil_name = self.params['Readout']['pupil'].lower()
-            actual_filter_name = self.params['Readout']['filter'].lower()
+        if self.params["Inst"]["instrument"].lower() == "nircam":
+            actual_pupil_name = self.params["Readout"]["pupil"].lower()
+            actual_filter_name = self.params["Readout"]["filter"].lower()
 
             # If a grism is in the pupil wheel, replace it with a filter
-            if actual_pupil_name.lower() in ['grismr', 'grismc']:
-                actual_pupil_name = 'clear'
+            if actual_pupil_name.lower() in ["grismr", "grismc"]:
+                actual_pupil_name = "clear"
 
-            comb_str = '{}_{}'.format(actual_filter_name.lower(), actual_pupil_name.lower())
+            comb_str = "{}_{}".format(
+                actual_filter_name.lower(), actual_pupil_name.lower()
+            )
 
             # Construct the column header to look for
             specific_mag_col = "nircam_{}_magnitude".format(comb_str)
@@ -3613,67 +4581,93 @@ class Catalog_seed():
             # for cases where a narrow filter in the pupil wheel is crossed
             # with a wide filter in the filter wheel
             if specific_mag_col not in catalog.colnames:
-                if actual_pupil_name == 'clear':
+                if actual_pupil_name == "clear":
                     specific_mag_col = "nircam_{}_magnitude".format(actual_filter_name)
-                elif actual_pupil_name[0] == 'f' and actual_filter_name[0] == 'f':
+                elif actual_pupil_name[0] == "f" and actual_filter_name[0] == "f":
                     specific_mag_col = "nircam_{}_magnitude".format(actual_pupil_name)
-                elif actual_pupil_name in ['wlp8', 'wlm8']:
+                elif actual_pupil_name in ["wlp8", "wlm8"]:
                     # Weak lenses were not supported with the old column
                     # name format, so if the new format column name is not
                     # present, then we raise an exception here. While WLP4
                     # has a very small effect on throughput, WLP8 and WLM8
                     # do, so falling back to looking for a <filter>+CLEAR
                     # column seems like the wrong thing to do.
-                    raise ValueError(("WARNING: Catalog {} has no magnitude column for {} specifically called {}. "
-                                      "Unable to continue.".format(os.path.split(catalog_file_name)[1],
-                                                                   self.params['Inst']['instrument'],
-                                                                   specific_mag_col)))
-        elif self.params['Inst']['instrument'].lower() == 'niriss':
-            if self.params['Readout']['pupil'][0].upper() == 'F':
-                specific_mag_col = "{}_{}_magnitude".format('niriss', self.params['Readout']['pupil'].lower())
+                    raise ValueError(
+                        (
+                            "WARNING: Catalog {} has no magnitude column for {} specifically called {}. "
+                            "Unable to continue.".format(
+                                os.path.split(catalog_file_name)[1],
+                                self.params["Inst"]["instrument"],
+                                specific_mag_col,
+                            )
+                        )
+                    )
+        elif self.params["Inst"]["instrument"].lower() == "niriss":
+            if self.params["Readout"]["pupil"][0].upper() == "F":
+                specific_mag_col = "{}_{}_magnitude".format(
+                    "niriss", self.params["Readout"]["pupil"].lower()
+                )
             else:
-                specific_mag_col = "{}_{}_magnitude".format('niriss', self.params['Readout']['filter'].lower())
+                specific_mag_col = "{}_{}_magnitude".format(
+                    "niriss", self.params["Readout"]["filter"].lower()
+                )
 
-        elif self.params['Inst']['instrument'].lower() == 'fgs':
-            specific_mag_col = "{}_magnitude".format(self.params['Readout']['array_name'].split('_')[0].lower())
+        elif self.params["Inst"]["instrument"].lower() == "fgs":
+            specific_mag_col = "{}_magnitude".format(
+                self.params["Readout"]["array_name"].split("_")[0].lower()
+            )
 
         # Search catalog column names.
         if specific_mag_col in catalog.colnames:
-            self.logger.info("Using {} column in {} for magnitudes".format(specific_mag_col,
-                                                                           os.path.split(catalog_file_name)[1]))
+            self.logger.info(
+                "Using {} column in {} for magnitudes".format(
+                    specific_mag_col, os.path.split(catalog_file_name)[1]
+                )
+            )
             return specific_mag_col
 
-        elif 'magnitude' in catalog.colnames:
-            self.logger.warning(("WARNING: Catalog {} does not have a magnitude column called {}, "
-                                 "but does have a generic 'magnitude' column. Continuing simulation using that."
-                                 .format(os.path.split(catalog_file_name)[1], specific_mag_col)))
+        elif "magnitude" in catalog.colnames:
+            self.logger.warning(
+                (
+                    "WARNING: Catalog {} does not have a magnitude column called {}, "
+                    "but does have a generic 'magnitude' column. Continuing simulation using that.".format(
+                        os.path.split(catalog_file_name)[1], specific_mag_col
+                    )
+                )
+            )
             return "magnitude"
         else:
-            raise ValueError(("WARNING: Catalog {} has no magnitude column for {} specifically called {}, "
-                              "nor a generic 'magnitude' column. Unable to proceed."
-                              .format(os.path.split(catalog_file_name)[1], self.params['Inst']['instrument'],
-                              specific_mag_col)))
+            raise ValueError(
+                (
+                    "WARNING: Catalog {} has no magnitude column for {} specifically called {}, "
+                    "nor a generic 'magnitude' column. Unable to proceed.".format(
+                        os.path.split(catalog_file_name)[1],
+                        self.params["Inst"]["instrument"],
+                        specific_mag_col,
+                    )
+                )
+            )
 
     def makePos(self, alpha1, delta1):
         # given a numerical RA/Dec pair, convert to string
         # values hh:mm:ss
-        if ((alpha1 < 0) or (alpha1 >= 360.)):
+        if (alpha1 < 0) or (alpha1 >= 360.0):
             alpha1 = alpha1 % 360
-        if delta1 < 0.:
+        if delta1 < 0.0:
             sign = "-"
             d1 = abs(delta1)
         else:
             sign = "+"
             d1 = delta1
         decd = int(d1)
-        value = 60. * (d1 - float(decd))
+        value = 60.0 * (d1 - float(decd))
         decm = int(value)
-        decs = 60. * (value - decm)
+        decs = 60.0 * (value - decm)
         a1 = alpha1 / 15.0
         radeg = int(a1)
-        value = 60. * (a1 - radeg)
+        value = 60.0 * (a1 - radeg)
         ramin = int(value)
-        rasec = 60. * (value - ramin)
+        rasec = 60.0 * (value - ramin)
         alpha2 = "%2.2d:%2.2d:%7.4f" % (radeg, ramin, rasec)
         delta2 = "%1s%2.2d:%2.2d:%7.4f" % (sign, decd, decm, decs)
         alpha2 = alpha2.replace(" ", "0")
@@ -3702,9 +4696,13 @@ class Catalog_seed():
             Y coordinate value in the aperture corresponding to the input location
         """
         if not self.use_intermediate_aperture:
-            loc_v2, loc_v3 = pysiaf.utils.rotations.getv2v3(self.attitude_matrix, ra, dec)
+            loc_v2, loc_v3 = pysiaf.utils.rotations.getv2v3(
+                self.attitude_matrix, ra, dec
+            )
         else:
-            loc_v2, loc_v3 = pysiaf.utils.rotations.getv2v3(self.intermediate_attitude_matrix, ra, dec)
+            loc_v2, loc_v3 = pysiaf.utils.rotations.getv2v3(
+                self.intermediate_attitude_matrix, ra, dec
+            )
 
         if self.coord_transform is not None:
             # Use the distortion reference file to translate from V2, V3 to RA, Dec
@@ -3712,7 +4710,9 @@ class Catalog_seed():
             pixelx -= self.subarray_bounds[0]
             pixely -= self.subarray_bounds[1]
         else:
-            self.logger.debug('SIAF: using {} to transform from tel to sci'.format(self.siaf.AperName))
+            self.logger.debug(
+                "SIAF: using {} to transform from tel to sci".format(self.siaf.AperName)
+            )
             pixelx, pixely = self.siaf.tel_to_sci(loc_v2, loc_v3)
             # Subtract 1 from SAIF-derived results since SIAF works in a 1-indexed coord system
             pixelx -= 1
@@ -3744,8 +4744,8 @@ class Catalog_seed():
         angle : float
             Angle (east of north?) separating the two sources
         """
-        c1 = SkyCoord(radec1[0]*u.degree, radec1[1]*u.degree, frame='icrs')
-        c2 = SkyCoord(radec2[0]*u.degree, radec2[1]*u.degree, frame='icrs')
+        c1 = SkyCoord(radec1[0] * u.degree, radec1[1] * u.degree, frame="icrs")
+        c2 = SkyCoord(radec2[0] * u.degree, radec2[1] * u.degree, frame="icrs")
         sepra, sepdec = c1.spherical_offsets_to(c2).to_pixel(wcs)
         return sepra, sepdec
 
@@ -3787,9 +4787,13 @@ class Catalog_seed():
             loc_v2, loc_v3 = self.siaf.sci_to_tel(pixelx + 1, pixely + 1)
 
         if not self.use_intermediate_aperture:
-            ra, dec = pysiaf.utils.rotations.pointing(self.attitude_matrix, loc_v2, loc_v3)
+            ra, dec = pysiaf.utils.rotations.pointing(
+                self.attitude_matrix, loc_v2, loc_v3
+            )
         else:
-            ra, dec = pysiaf.utils.rotations.pointing(self.intermediate_attitude_matrix, loc_v2, loc_v3)
+            ra, dec = pysiaf.utils.rotations.pointing(
+                self.intermediate_attitude_matrix, loc_v2, loc_v3
+            )
 
         # Translate the RA/Dec floats to strings
         ra_str, dec_str = self.makePos(ra, dec)
@@ -3807,25 +4811,31 @@ class Catalog_seed():
             pflag = False
             rpflag = False
             try:
-                if 'position_pixels' in gtab.meta['comments'][0:4]:
+                if "position_pixels" in gtab.meta["comments"][0:4]:
                     pflag = True
             except:
                 pass
             try:
-                if 'radius_pixels' in gtab.meta['comments'][0:4]:
+                if "radius_pixels" in gtab.meta["comments"][0:4]:
                     rpflag = True
             except:
                 pass
             # Check to see if magnitude system is specified in the comments
             # If not assume AB mags
-            msys = 'abmag'
-            condition = ('stmag' in gtab.meta['comments'][0:4]) | ('vegamag' in gtab.meta['comments'][0:4])
+            msys = "abmag"
+            condition = ("stmag" in gtab.meta["comments"][0:4]) | (
+                "vegamag" in gtab.meta["comments"][0:4]
+            )
             if condition:
-                msys = [l for l in gtab.meta['comments'][0:4] if 'mag' in l][0]
+                msys = [l for l in gtab.meta["comments"][0:4] if "mag" in l][0]
                 msys = msys.lower()
 
         except:
-            raise IOError("WARNING: Unable to open the galaxy source list file {}".format(filename))
+            raise IOError(
+                "WARNING: Unable to open the galaxy source list file {}".format(
+                    filename
+                )
+            )
 
         return gtab, pflag, rpflag, msys
 
@@ -3833,13 +4843,44 @@ class Catalog_seed():
         # given a list of galaxies (location, size, orientation, magnitude)
         # keep only those which will fall fully or partially on the output array
 
-        filteredList = Table(names=('index', 'pixelx', 'pixely', 'RA', 'Dec',
-                                    'RA_degrees', 'Dec_degrees', 'V2', 'V3',
-                                    'radius', 'ellipticity', 'pos_angle',
-                                    'sersic_index', 'magnitude', 'countrate_e/s',
-                                    'counts_per_frame_e'),
-                             dtype=('i', 'f', 'f', 'S14', 'S14', 'f', 'f', 'f',
-                                    'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f'))
+        filteredList = Table(
+            names=(
+                "index",
+                "pixelx",
+                "pixely",
+                "RA",
+                "Dec",
+                "RA_degrees",
+                "Dec_degrees",
+                "V2",
+                "V3",
+                "radius",
+                "ellipticity",
+                "pos_angle",
+                "sersic_index",
+                "magnitude",
+                "countrate_e/s",
+                "counts_per_frame_e",
+            ),
+            dtype=(
+                "i",
+                "f",
+                "f",
+                "S14",
+                "S14",
+                "f",
+                "f",
+                "f",
+                "f",
+                "f",
+                "f",
+                "f",
+                "f",
+                "f",
+                "f",
+                "f",
+            ),
+        )
 
         # Each entry in galaxylist is:
         # index x_or_RA  y_or_Dec  radius  ellipticity  pos_angle  sersic_index  magnitude
@@ -3857,7 +4898,9 @@ class Catalog_seed():
         nx = self.subarray_bounds[2] - self.subarray_bounds[0] + 1
 
         # Expand the limits if a grism direct image is being made
-        if (self.params['Output']['grism_source_image'] == True) or (self.params['Inst']['mode'] in ["pom", "wfss"]):
+        if (self.params["Output"]["grism_source_image"] == True) or (
+            self.params["Inst"]["mode"] in ["pom", "wfss"]
+        ):
             """
             extrapixy = np.int((maxy + 1)/2 * (self.grism_direct_factor_y - 1.))
             miny -= extrapixy
@@ -3883,19 +4926,24 @@ class Catalog_seed():
             ny = transmission_ydim
 
         # Get source index numbers
-        indexes = galaxylist['index']
+        indexes = galaxylist["index"]
 
         # Check the source list and remove any sources that are well outside the
         # field of view of the detector. These sources cause the coordinate
         # conversion to hang.
-        indexes, galaxylist = self.remove_outside_fov_sources(indexes, galaxylist, pixelflag, 4096)
+        indexes, galaxylist = self.remove_outside_fov_sources(
+            indexes, galaxylist, pixelflag, 4096
+        )
 
         # Determine the name of the column to use for source magnitudes
         mag_column = self.select_magnitude_column(galaxylist, catfile)
 
         # For NIRISS observations where ghosts will be added, create a table to hold
         # the ghost entries
-        if self.params['Inst']['instrument'].lower() == 'niriss' and self.params['simSignals']['add_ghosts']:
+        if (
+            self.params["Inst"]["instrument"].lower() == "niriss"
+            and self.params["simSignals"]["add_ghosts"]
+        ):
             ghost_source_index = []
             ghost_x = []
             ghost_y = []
@@ -3919,13 +4967,13 @@ class Catalog_seed():
 
             # If galaxy radii are given in units of arcseconds, translate to pixels
             if radiusflag is False:
-                source['radius'] /= self.siaf.XSciScale
+                source["radius"] /= self.siaf.XSciScale
 
             # how many pixels beyond the nominal subarray edges can a source be located and
             # still have it fall partially on the subarray? Galaxy stamps are nominally set to
             # have a length and width equal to 100 times the requested radius.
-            edgex = source['radius'] * 100 / 2 - 1
-            edgey = source['radius'] * 100 / 2 - 1
+            edgex = source["radius"] * 100 / 2 - 1
+            edgey = source["radius"] * 100 / 2 - 1
 
             # reset the field of view limits for the size of the current stamp image
             outminy = miny - edgey
@@ -3933,22 +4981,38 @@ class Catalog_seed():
             outminx = minx - edgex
             outmaxx = maxx + edgex
 
-            pixelx, pixely, ra, dec, ra_str, dec_str = self.get_positions(source['x_or_RA'],
-                                                                          source['y_or_Dec'],
-                                                                          pixelflag, 4096)
+            pixelx, pixely, ra, dec, ra_str, dec_str = self.get_positions(
+                source["x_or_RA"], source["y_or_Dec"], pixelflag, 4096
+            )
 
             # Calculate count rate
             mag = float(source[mag_column])
             # Convert magnitudes to countrate (ADU/sec) and counts per frame
-            rate = utils.magnitude_to_countrate(self.instrument, self.params['Readout']['filter'],
-                                                magsystem, mag, photfnu=self.photfnu, photflam=self.photflam,
-                                                vegamag_zeropoint=self.vegazeropoint)
+            rate = utils.magnitude_to_countrate(
+                self.instrument,
+                self.params["Readout"]["filter"],
+                magsystem,
+                mag,
+                photfnu=self.photfnu,
+                photflam=self.photflam,
+                vegamag_zeropoint=self.vegazeropoint,
+            )
 
             # If this is a NIRISS simulation and the user wants to add ghosts,
             # do that here.
-            if self.params['Inst']['instrument'].lower() == 'niriss' and self.params['simSignals']['add_ghosts']:
-                gx, gy, gmag, gcounts, gfile = self.locate_ghost(pixelx, pixely, rate, magsystem, source, 'galaxies',
-                                                                 log_skipped_filters=log_ghost_err)
+            if (
+                self.params["Inst"]["instrument"].lower() == "niriss"
+                and self.params["simSignals"]["add_ghosts"]
+            ):
+                gx, gy, gmag, gcounts, gfile = self.locate_ghost(
+                    pixelx,
+                    pixely,
+                    rate,
+                    magsystem,
+                    source,
+                    "galaxies",
+                    log_skipped_filters=log_ghost_err,
+                )
                 if np.isfinite(gx) and gfile is not None:
                     ghost_source_index.append(index)
                     ghost_x.append(gx)
@@ -3956,8 +5020,14 @@ class Catalog_seed():
                     ghost_mag.append(gmag)
                     ghost_filename.append(gfile)
 
-                    ghost_src, skipped_non_niriss = source_mags_to_ghost_mags(source, self.params['Reffiles']['flux_cal'], magsystem,
-                                                                              NIRISS_GHOST_GAP_FILE, self.params['Readout']['filter'], log_skipped_filters=False)
+                    ghost_src, skipped_non_niriss = source_mags_to_ghost_mags(
+                        source,
+                        self.params["Reffiles"]["flux_cal"],
+                        magsystem,
+                        NIRISS_GHOST_GAP_FILE,
+                        self.params["Readout"]["filter"],
+                        log_skipped_filters=False,
+                    )
 
                     if ghost_mags is None:
                         ghost_mags = copy.deepcopy(ghost_src)
@@ -3969,11 +5039,31 @@ class Catalog_seed():
                 ghost_i += 1
 
             # only keep the source if the peak will fall within the subarray
-            if pixely > outminy and pixely < outmaxy and pixelx > outminx and pixelx < outmaxx:
+            if (
+                pixely > outminy
+                and pixely < outmaxy
+                and pixelx > outminx
+                and pixelx < outmaxx
+            ):
 
-                pixelv2, pixelv3 = pysiaf.utils.rotations.getv2v3(self.attitude_matrix, ra, dec)
-                entry = [index, pixelx, pixely, ra_str, dec_str, ra, dec, pixelv2, pixelv3,
-                         source['radius'], source['ellipticity'], source['pos_angle'], source['sersic_index']]
+                pixelv2, pixelv3 = pysiaf.utils.rotations.getv2v3(
+                    self.attitude_matrix, ra, dec
+                )
+                entry = [
+                    index,
+                    pixelx,
+                    pixely,
+                    ra_str,
+                    dec_str,
+                    ra,
+                    dec,
+                    pixelv2,
+                    pixelv3,
+                    source["radius"],
+                    source["ellipticity"],
+                    source["pos_angle"],
+                    source["sersic_index"],
+                ]
 
                 # Now look at the input magnitude of the point source
                 # append the mag and pixel position to the list of ra, dec
@@ -3988,33 +5078,70 @@ class Catalog_seed():
                 # add the good point source, including location and counts, to the pointSourceList
                 filteredList.add_row(entry)
 
-        if self.params['Inst']['instrument'].lower() == 'niriss' and self.params['simSignals']['add_ghosts'] and skipped_non_niriss:
-            self.logger.info(("Skipped the calculation of ghost source magnitudes for the non-NIRISS magnitude columns in "
-                              "galaxy source catalog."))
+        if (
+            self.params["Inst"]["instrument"].lower() == "niriss"
+            and self.params["simSignals"]["add_ghosts"]
+            and skipped_non_niriss
+        ):
+            self.logger.info(
+                (
+                    "Skipped the calculation of ghost source magnitudes for the non-NIRISS magnitude columns in "
+                    "galaxy source catalog."
+                )
+            )
 
         # Write the results to a file
         self.n_galaxies = len(filteredList)
         if self.n_galaxies > 0:
-            self.logger.info(("Number of galaxies found within or close to the requested aperture: {}".format(self.n_galaxies)))
+            self.logger.info(
+                (
+                    "Number of galaxies found within or close to the requested aperture: {}".format(
+                        self.n_galaxies
+                    )
+                )
+            )
         else:
             self.logger.info("\nINFO: No galaxies present within the aperture.")
 
-        filteredList.meta['comments'] = [("Field center (degrees): %13.8f %14.8f y axis rotation angle "
-                                          "(degrees): %f  image size: %4.4d %4.4d\n" %
-                                          (self.ra, self.dec, self.params['Telescope']['rotation'], nx, ny))]
-        filteredOut = self.basename + '_galaxySources.list'
-        filteredList.write(filteredOut, format='ascii', overwrite=True)
+        filteredList.meta["comments"] = [
+            (
+                "Field center (degrees): %13.8f %14.8f y axis rotation angle "
+                "(degrees): %f  image size: %4.4d %4.4d\n"
+                % (self.ra, self.dec, self.params["Telescope"]["rotation"], nx, ny)
+            )
+        ]
+        filteredOut = self.basename + "_galaxySources.list"
+        filteredList.write(filteredOut, format="ascii", overwrite=True)
 
         # If any ghost sources were found, create an extended catalog object to hold them
-        if self.params['Inst']['instrument'].lower() == 'niriss' and self.params['simSignals']['add_ghosts']:
-            ghosts_from_galaxies = self.save_ghost_catalog(ghost_x, ghost_y, ghost_filename, ghost_mags, catfile, ghost_source_index)
+        if (
+            self.params["Inst"]["instrument"].lower() == "niriss"
+            and self.params["simSignals"]["add_ghosts"]
+        ):
+            ghosts_from_galaxies = self.save_ghost_catalog(
+                ghost_x,
+                ghost_y,
+                ghost_filename,
+                ghost_mags,
+                catfile,
+                ghost_source_index,
+            )
         else:
             ghosts_from_galaxies = None
 
         return filteredList, ghosts_from_galaxies
 
-    def create_galaxy(self, r_Sersic, ellipticity, sersic_index, position_angle, total_counts, subpixx, subpixy,
-                      signal_matching_threshold=0.02):
+    def create_galaxy(
+        self,
+        r_Sersic,
+        ellipticity,
+        sersic_index,
+        position_angle,
+        total_counts,
+        subpixx,
+        subpixy,
+        signal_matching_threshold=0.02,
+    ):
         """Create a model 2d sersic image with a given radius, eccentricity,
         position angle, and total counts.
 
@@ -4060,33 +5187,69 @@ class Catalog_seed():
 
         # Find the effective radius, semi-major, and semi-minor axes sizes
         # needed to encompass SERSIC_FRACTIONAL_SIGNAL of the total flux
-        sersic_rad, semi_major_axis, semi_minor_axis = sersic_fractional_radius(r_Sersic, sersic_index,
-                                                                                SERSIC_FRACTIONAL_SIGNAL,
-                                                                                ellipticity)
+        sersic_rad, semi_major_axis, semi_minor_axis = sersic_fractional_radius(
+            r_Sersic, sersic_index, SERSIC_FRACTIONAL_SIGNAL, ellipticity
+        )
 
         # Using the position angle, calculate the size of the source in the
         # x and y directions
-        y_full_length = np.int(np.ceil(np.max([2 * semi_major_axis * np.absolute(np.cos(position_angle)), 2 * semi_minor_axis])))
-        x_full_length = np.int(np.ceil(np.max([2 * semi_major_axis * np.absolute(np.sin(position_angle)), 2 * semi_minor_axis])))
+        y_full_length = np.int(
+            np.ceil(
+                np.max(
+                    [
+                        2 * semi_major_axis * np.absolute(np.cos(position_angle)),
+                        2 * semi_minor_axis,
+                    ]
+                )
+            )
+        )
+        x_full_length = np.int(
+            np.ceil(
+                np.max(
+                    [
+                        2 * semi_major_axis * np.absolute(np.sin(position_angle)),
+                        2 * semi_minor_axis,
+                    ]
+                )
+            )
+        )
 
         num_pix = x_full_length * y_full_length
 
         delta_limit = 0.005
         limit = SERSIC_FRACTIONAL_SIGNAL
         # Limit the maximum size of the stamp in order to save computation time
-        while num_pix > (2500.**2):
+        while num_pix > (2500.0**2):
             limit -= delta_limit
 
             # Find the effective radius, semi-major, and semi-minor axes sizes
             # needed to encompass SERSIC_FRACTIONAL_SIGNAL of the total flux
-            sersic_rad, semi_major_axis, semi_minor_axis = sersic_fractional_radius(r_Sersic, sersic_index,
-                                                                                    limit,
-                                                                                    ellipticity)
+            sersic_rad, semi_major_axis, semi_minor_axis = sersic_fractional_radius(
+                r_Sersic, sersic_index, limit, ellipticity
+            )
 
             # Using the position angle, calculate the size of the source in the
             # x and y directions
-            y_full_length = np.int(np.ceil(np.max([2 * semi_major_axis * np.absolute(np.cos(position_angle)), 2 * semi_minor_axis])))
-            x_full_length = np.int(np.ceil(np.max([2 * semi_major_axis * np.absolute(np.sin(position_angle)), 2 * semi_minor_axis])))
+            y_full_length = np.int(
+                np.ceil(
+                    np.max(
+                        [
+                            2 * semi_major_axis * np.absolute(np.cos(position_angle)),
+                            2 * semi_minor_axis,
+                        ]
+                    )
+                )
+            )
+            x_full_length = np.int(
+                np.ceil(
+                    np.max(
+                        [
+                            2 * semi_major_axis * np.absolute(np.sin(position_angle)),
+                            2 * semi_minor_axis,
+                        ]
+                    )
+                )
+            )
 
             num_pix = x_full_length * y_full_length
 
@@ -4098,14 +5261,21 @@ class Catalog_seed():
             x_full_length += 1
 
         # Center the galaxy within (0, 0) at the requested subpixel location
-        if ((subpixx > 1) or (subpixx < -1) or (subpixy > 1) or (subpixy < -1)):
-            raise ValueError('Subpixel x and y poistions must be -1 < subpix < 1')
+        if (subpixx > 1) or (subpixx < -1) or (subpixy > 1) or (subpixy < -1):
+            raise ValueError("Subpixel x and y poistions must be -1 < subpix < 1")
 
         # Create model. Add 90 degrees to the position_angle because the definition
         # Mirage has been using is that the PA is degrees east of north of the
         # semi-major axis
-        mod = Sersic2D(amplitude=amplitude, r_eff=r_Sersic, n=sersic_index, x_0=subpixx, y_0=subpixy,
-                       ellip=ellipticity, theta=position_angle)
+        mod = Sersic2D(
+            amplitude=amplitude,
+            r_eff=r_Sersic,
+            n=sersic_index,
+            x_0=subpixx,
+            y_0=subpixy,
+            ellip=ellipticity,
+            theta=position_angle,
+        )
 
         x_half_length = x_full_length // 2
         xmin = int(0 - x_half_length)
@@ -4128,7 +5298,7 @@ class Catalog_seed():
         # enough (which it should be given the size calculations above), then the signal
         # outside the stamp should be negligible and scaling the stamp to the requested signal
         # level should be correct.
-        sig_diff = np.absolute(1. - np.sum(stamp) / (total_counts * limit))
+        sig_diff = np.absolute(1.0 - np.sum(stamp) / (total_counts * limit))
         if sig_diff > signal_matching_threshold:
             stamp = stamp / np.sum(stamp) * (total_counts * limit)
 
@@ -4159,14 +5329,17 @@ class Catalog_seed():
         # In the case of no signal, return the original stamp image.
         # This can happen for some Sersic profile parameters when the galaxy
         # is very small compared to the pixel size.
-        if totsignal == 0.:
+        if totsignal == 0.0:
             return stamp
         yd, xd = stamp.shape
         mid = np.int(xd / 2)
         for rad in range(mid):
-            signal = np.sum(stamp[mid - rad:mid + rad + 1, mid - rad:mid + rad + 1]) / totsignal
+            signal = (
+                np.sum(stamp[mid - rad : mid + rad + 1, mid - rad : mid + rad + 1])
+                / totsignal
+            )
             if signal >= threshold:
-                return stamp[mid - rad:mid + rad + 1, mid - rad:mid + rad + 1]
+                return stamp[mid - rad : mid + rad + 1, mid - rad : mid + rad + 1]
         # If we make it all the way through the stamp without
         # hitting the threshold, then return the full stamp image
         return stamp
@@ -4196,18 +5369,28 @@ class Catalog_seed():
         # Read in the list of galaxies (positions and magnitides)
         glist, pixflag, radflag, magsys = self.readGalaxyFile(file)
         if pixflag:
-            self.logger.info("Galaxy list input positions assumed to be in units of pixels.")
+            self.logger.info(
+                "Galaxy list input positions assumed to be in units of pixels."
+            )
         else:
-            self.logger.info("Galaxy list input positions assumed to be in units of RA and Dec.")
+            self.logger.info(
+                "Galaxy list input positions assumed to be in units of RA and Dec."
+            )
 
         if radflag:
-            self.logger.info("Galaxy list input radii assumed to be in units of pixels.")
+            self.logger.info(
+                "Galaxy list input radii assumed to be in units of pixels."
+            )
         else:
-            self.logger.info("Galaxy list input radii assumed to be in units of arcsec.")
+            self.logger.info(
+                "Galaxy list input radii assumed to be in units of arcsec."
+            )
 
         # Extract and save only the entries which will land (fully or partially) on the
         # aperture of the output
-        galaxylist, ghost_sources_from_galaxies = self.filterGalaxyList(glist, pixflag, radflag, magsys, file)
+        galaxylist, ghost_sources_from_galaxies = self.filterGalaxyList(
+            glist, pixflag, radflag, magsys, file
+        )
 
         # galaxylist is a table with columns:
         # 'pixelx', 'pixely', 'RA', 'Dec', 'RA_degrees', 'Dec_degrees', 'radius', 'ellipticity',
@@ -4244,13 +5427,20 @@ class Catalog_seed():
             # is just V3SciYAngle in the SIAF (I think???)
             # v3SciYAng is measured in degrees, from V3 towards the Y axis,
             # measured from V3 towards V2.
-            xposang = self.calc_x_position_angle(entry['pos_angle'])
-            sub_x = 0.
-            sub_y = 0.
+            xposang = self.calc_x_position_angle(entry["pos_angle"])
+            sub_x = 0.0
+            sub_y = 0.0
 
             # First create the galaxy
-            stamp = self.create_galaxy(entry['radius'], entry['ellipticity'], entry['sersic_index'],
-                                       xposang*np.pi/180., entry['countrate_e/s'], sub_x, sub_y)
+            stamp = self.create_galaxy(
+                entry["radius"],
+                entry["ellipticity"],
+                entry["sersic_index"],
+                xposang * np.pi / 180.0,
+                entry["countrate_e/s"],
+                sub_x,
+                sub_y,
+            )
 
             # If the stamp image is smaller than the PSF in either
             # dimension, embed the stamp in an array that matches
@@ -4264,17 +5454,24 @@ class Catalog_seed():
             # Whether this is a problem or not will depend on the relative
             # sizes of the photometry aperture versus the extended source.
             psf_dimensions = np.array(self.psf_library.data.shape[-2:])
-            psf_shape = np.array((psf_dimensions / self.psf_library_oversamp) -
-                                 self.params['simSignals']['gridded_psf_library_row_padding']).astype(np.int)
+            psf_shape = np.array(
+                (psf_dimensions / self.psf_library_oversamp)
+                - self.params["simSignals"]["gridded_psf_library_row_padding"]
+            ).astype(np.int)
 
-            if ((galdims[0] < psf_shape[0]) or (galdims[1] < psf_shape[1])):
+            if (galdims[0] < psf_shape[0]) or (galdims[1] < psf_shape[1]):
                 stamp = self.enlarge_stamp(stamp, psf_shape)
                 galdims = stamp.shape
 
             # Get the PSF which will be convolved with the galaxy profile
             # The PSF should be centered in the pixel containing the galaxy center
-            psf_image, min_x, min_y, wings_added = self.create_psf_stamp(entry['pixelx'], entry['pixely'], psf_shape[1], psf_shape[0],
-                                                                         ignore_detector=True)
+            psf_image, min_x, min_y, wings_added = self.create_psf_stamp(
+                entry["pixelx"],
+                entry["pixely"],
+                psf_shape[1],
+                psf_shape[0],
+                ignore_detector=True,
+            )
 
             # Skip sources that fall completely off the detector
             if psf_image is None:
@@ -4290,37 +5487,68 @@ class Catalog_seed():
             # We also need to shift the location of the wing array on the
             # detector by 1
             if wings_added:
-                x_delta = int(np.modf(entry['pixelx'])[0] > 0.5)
-                y_delta = int(np.modf(entry['pixely'])[0] > 0.5)
+                x_delta = int(np.modf(entry["pixelx"])[0] > 0.5)
+                y_delta = int(np.modf(entry["pixely"])[0] > 0.5)
             else:
                 x_delta = 0
                 y_delta = 0
 
             # Calculate the coordinates describing the overlap between
             # the PSF image and the galaxy image
-            xap, yap, xpts, ypts, (i1, i2), (j1, j2), (k1, k2), \
-                (l1, l2) = self.create_psf_stamp_coords(entry['pixelx']+x_delta, entry['pixely']+y_delta,
-                                                        galdims, galdims[1] // 2, galdims[0] // 2,
-                                                        coord_sys='aperture')
+            (
+                xap,
+                yap,
+                xpts,
+                ypts,
+                (i1, i2),
+                (j1, j2),
+                (k1, k2),
+                (l1, l2),
+            ) = self.create_psf_stamp_coords(
+                entry["pixelx"] + x_delta,
+                entry["pixely"] + y_delta,
+                galdims,
+                galdims[1] // 2,
+                galdims[0] // 2,
+                coord_sys="aperture",
+            )
 
             # Make sure the stamp is at least partially on the detector
             if i1 is not None and i2 is not None and j1 is not None and j2 is not None:
                 # Convolve the galaxy image with the PSF image
-                stamp = s1.fftconvolve(stamp, psf_image, mode='same')
+                stamp = s1.fftconvolve(stamp, psf_image, mode="same")
 
                 # Now add the stamp to the main image
-                if ((j2 > j1) and (i2 > i1) and (l2 > l1) and (k2 > k1) and (j1 < yd) and (i1 < xd)):
+                if (
+                    (j2 > j1)
+                    and (i2 > i1)
+                    and (l2 > l1)
+                    and (k2 > k1)
+                    and (j1 < yd)
+                    and (i1 < xd)
+                ):
                     stamp_to_add = stamp[l1:l2, k1:k2]
                     galimage[j1:j2, i1:i2] += stamp_to_add
                     # Add source to segmentation map
-                    segmentation.add_object_threshold(stamp_to_add, j1, i1, entry['index'], self.segmentation_threshold)
+                    segmentation.add_object_threshold(
+                        stamp_to_add,
+                        j1,
+                        i1,
+                        entry["index"],
+                        self.segmentation_threshold,
+                    )
 
-                    if self.params['Inst']['mode'] in DISPERSED_MODES:
+                    if self.params["Inst"]["mode"] in DISPERSED_MODES:
                         # Add source to the seed cube
                         stamp = np.zeros(stamp_to_add.shape)
                         flag = stamp_to_add >= self.segmentation_threshold
-                        stamp[flag] = entry['index']
-                        seed_cube[entry['index']] = [i1, j1, stamp_to_add*1, stamp*1]
+                        stamp[flag] = entry["index"]
+                        seed_cube[entry["index"]] = [
+                            i1,
+                            j1,
+                            stamp_to_add * 1,
+                            stamp * 1,
+                        ]
 
                 else:
                     pass
@@ -4328,21 +5556,41 @@ class Catalog_seed():
             else:
                 pass
 
-            self.timer.stop(name='gal_{}'.format(str(entry_index).zfill(6)))
+            self.timer.stop(name="gal_{}".format(str(entry_index).zfill(6)))
 
             # If there are more than 30 galaxies, provide an estimate of processing time
             if len(galaxylist) > 100:
-                if ((entry_index == 20) or ((entry_index > 0) and (np.mod(entry_index, 100) == 0))):
-                    time_per_galaxy = self.timer.sum(key_str='gal_') / (entry_index+1)
-                    estimated_remaining_time = time_per_galaxy * (len(galaxylist) - (entry_index+1)) * u.second
-                    time_remaining = np.around(estimated_remaining_time.to(u.minute).value, decimals=2)
-                    finish_time = datetime.datetime.now() + datetime.timedelta(minutes=time_remaining)
-                    self.logger.info(('Working on galaxy #{}. Estimated time remaining to add all galaxies to the stamp image: {} minutes. '
-                                      'Projected finish time: {}'.format(entry_index, time_remaining, finish_time)))
+                if (entry_index == 20) or (
+                    (entry_index > 0) and (np.mod(entry_index, 100) == 0)
+                ):
+                    time_per_galaxy = self.timer.sum(key_str="gal_") / (entry_index + 1)
+                    estimated_remaining_time = (
+                        time_per_galaxy
+                        * (len(galaxylist) - (entry_index + 1))
+                        * u.second
+                    )
+                    time_remaining = np.around(
+                        estimated_remaining_time.to(u.minute).value, decimals=2
+                    )
+                    finish_time = datetime.datetime.now() + datetime.timedelta(
+                        minutes=time_remaining
+                    )
+                    self.logger.info(
+                        (
+                            "Working on galaxy #{}. Estimated time remaining to add all galaxies to the stamp image: {} minutes. "
+                            "Projected finish time: {}".format(
+                                entry_index, time_remaining, finish_time
+                            )
+                        )
+                    )
 
-        if self.params['Inst']['mode'] in DISPERSED_MODES:
+        if self.params["Inst"]["mode"] in DISPERSED_MODES:
             # Save the seed cube file of galaxy sources
-            pickle.dump(seed_cube, open("%s_galaxy_seed_cube.pickle" % (self.basename), "wb"), protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump(
+                seed_cube,
+                open("%s_galaxy_seed_cube.pickle" % (self.basename), "wb"),
+                protocol=pickle.HIGHEST_PROTOCOL,
+            )
 
         return galimage, segmentation.segmap, ghost_sources_from_galaxies
 
@@ -4362,13 +5610,17 @@ class Catalog_seed():
             Position angle of source relative to detector x
             axis, in units of degrees
         """
-        x_posang = 0. - (self.siaf.V3SciXAngle + self.local_roll + position_angle)
+        x_posang = 0.0 - (self.siaf.V3SciXAngle + self.local_roll + position_angle)
 
         # If we are using a Grism Time series aperture, then we need to use the intermediate
         # aperture to determine the correct rotation. Currently, we should never be in
         # here since grism TSO observations only support the use of point sources.
         if self.use_intermediate_aperture:
-            x_posang = 0. - (self.intermediate_siaf.V3SciXAngle + self.intermediate_local_roll + position_angle)
+            x_posang = 0.0 - (
+                self.intermediate_siaf.V3SciXAngle
+                + self.intermediate_local_roll
+                + position_angle
+            )
         return x_posang
 
     def calc_x_position_angle_extended(self, position_angle):
@@ -4396,7 +5648,16 @@ class Catalog_seed():
             x_posang = self.intermediate_local_roll + position_angle
         return x_posang
 
-    def locate_ghost(self, pixel_x, pixel_y, count_rate, magnitude_system, source_row, obj_type, log_skipped_filters=True):
+    def locate_ghost(
+        self,
+        pixel_x,
+        pixel_y,
+        count_rate,
+        magnitude_system,
+        source_row,
+        obj_type,
+        log_skipped_filters=True,
+    ):
         """Calculate the ghost location, brightness, and stamp image file name
         for the input source.
 
@@ -4441,31 +5702,42 @@ class Catalog_seed():
             If True, any filter magnitudes that are not converted because
             the filter is not in the gap summary file will be logged.
         """
-        allowed_types = ['point_source', 'galaxies', 'extended']
+        allowed_types = ["point_source", "galaxies", "extended"]
         if obj_type not in allowed_types:
-            raise ValueError('Unknown object type: {}. Must be one of: {}'.format(obj_type, allowed_types))
+            raise ValueError(
+                "Unknown object type: {}. Must be one of: {}".format(
+                    obj_type, allowed_types
+                )
+            )
 
         # For WFSS simulations, we ignore the grism
-        search_filter = self.params['Readout']['filter']
-        if self.params['Readout']['filter'].upper() in ['GR150R', 'GR150C']:
-            search_filter = 'GR150'
+        search_filter = self.params["Readout"]["filter"]
+        if self.params["Readout"]["filter"].upper() in ["GR150R", "GR150C"]:
+            search_filter = "GR150"
 
-        ghost_pixelx, ghost_pixely, ghost_countrate = get_ghost(pixel_x, pixel_y,
-                                                                count_rate,
-                                                                search_filter,
-                                                                self.params['Readout']['pupil'],
-                                                                NIRISS_GHOST_GAP_FILE,
-                                                                log_skipped_filters=log_skipped_filters
-                                                                )
+        ghost_pixelx, ghost_pixely, ghost_countrate = get_ghost(
+            pixel_x,
+            pixel_y,
+            count_rate,
+            search_filter,
+            self.params["Readout"]["pupil"],
+            NIRISS_GHOST_GAP_FILE,
+            log_skipped_filters=log_skipped_filters,
+        )
         if isinstance(ghost_pixelx, np.float):
             if not np.isfinite(ghost_pixelx):
                 return np.nan, np.nan, np.nan, np.nan, np.nan
 
         # Convert ghost countrate back into a magnitude
-        ghost_mag = utils.countrate_to_magnitude(self.instrument, self.params['Readout']['filter'],
-                                                 magnitude_system, ghost_countrate, photfnu=self.photfnu,
-                                                 photflam=self.photflam,
-                                                 vegamag_zeropoint=self.vegazeropoint)
+        ghost_mag = utils.countrate_to_magnitude(
+            self.instrument,
+            self.params["Readout"]["filter"],
+            magnitude_system,
+            ghost_countrate,
+            photfnu=self.photfnu,
+            photflam=self.photflam,
+            vegamag_zeropoint=self.vegazeropoint,
+        )
 
         # Determine the name of the file containing the stamp image
         # to use for the ghost
@@ -4473,7 +5745,15 @@ class Catalog_seed():
 
         return ghost_pixelx, ghost_pixely, ghost_mag, ghost_countrate, ghost_file
 
-    def save_ghost_catalog(self, x_loc, y_loc, filenames, magnitudes, orig_source_catalog, orig_source_mapping):
+    def save_ghost_catalog(
+        self,
+        x_loc,
+        y_loc,
+        filenames,
+        magnitudes,
+        orig_source_catalog,
+        orig_source_mapping,
+    ):
         """From lists of ghost source positions and magnitudes, create an extended source
         catalog and save to a file
 
@@ -4506,30 +5786,49 @@ class Catalog_seed():
             Name of ascii file to which the catalog is saved
         """
         if len(x_loc) == 0:
-            self.logger.info(('Ghost catalog from the catalog {} has no sources.'.format(orig_source_catalog)))
+            self.logger.info(
+                (
+                    "Ghost catalog from the catalog {} has no sources.".format(
+                        orig_source_catalog
+                    )
+                )
+            )
             return None
 
-        pa = [0.] * len(x_loc)
-        ghost_sources = ExtendedCatalog(x=x_loc, y=y_loc, filenames=filenames, position_angle=pa,
-                                        starting_index=self.max_source_index+1, corresponding_source_index_for_ghost=orig_source_mapping)
+        pa = [0.0] * len(x_loc)
+        ghost_sources = ExtendedCatalog(
+            x=x_loc,
+            y=y_loc,
+            filenames=filenames,
+            position_angle=pa,
+            starting_index=self.max_source_index + 1,
+            corresponding_source_index_for_ghost=orig_source_mapping,
+        )
 
         for colname in magnitudes.colnames:
             ghost_sources.add_magnitude_column(magnitudes[colname], column_name=colname)
 
-        self.max_source_index += len(ghost_sources.table['x_or_RA'])
+        self.max_source_index += len(ghost_sources.table["x_or_RA"])
 
         # Write out the ghost catalog to a new file, to be used later. Let's create
         # a subdirectory under the directory where the point source catalog is.
         source_cat_dir, source_cat_file = os.path.split(orig_source_catalog)
-        ghost_cat_dir = os.path.join(source_cat_dir, 'ghost_source_catalogs')
-        paramfile_name_only = os.path.basename(self.paramfile).strip('.yaml')
+        ghost_cat_dir = os.path.join(source_cat_dir, "ghost_source_catalogs")
+        paramfile_name_only = os.path.basename(self.paramfile).strip(".yaml")
         utils.ensure_dir_exists(ghost_cat_dir)
-        ghost_cat_filename = 'ghosts_from_{}_for_{}.cat'.format(source_cat_file, paramfile_name_only)
+        ghost_cat_filename = "ghosts_from_{}_for_{}.cat".format(
+            source_cat_file, paramfile_name_only
+        )
         ghosts_cat_file = os.path.join(ghost_cat_dir, ghost_cat_filename)
 
         ghost_sources.save(ghosts_cat_file)
-        self.logger.info(('Catalog of ghost sources from the catalog {} has been saved to: {}'
-                          .format(source_cat_file, ghosts_cat_file)))
+        self.logger.info(
+            (
+                "Catalog of ghost sources from the catalog {} has been saved to: {}".format(
+                    source_cat_file, ghosts_cat_file
+                )
+            )
+        )
         return ghosts_cat_file
 
     def getExtendedSourceList(self, filename, ghost_search=True):
@@ -4558,57 +5857,90 @@ class Catalog_seed():
             Name of ascii file containing the catalog of ghost sources associated with
             the input catalog
         """
-        extSourceList = Table(names=('index', 'pixelx', 'pixely', 'RA', 'Dec',
-                                     'RA_degrees', 'Dec_degrees', 'magnitude',
-                                     'countrate_e/s', 'counts_per_frame_e'),
-                              dtype=('i', 'f', 'f', 'S14', 'S14', 'f', 'f', 'f', 'f', 'f'))
+        extSourceList = Table(
+            names=(
+                "index",
+                "pixelx",
+                "pixely",
+                "RA",
+                "Dec",
+                "RA_degrees",
+                "Dec_degrees",
+                "magnitude",
+                "countrate_e/s",
+                "counts_per_frame_e",
+            ),
+            dtype=("i", "f", "f", "S14", "S14", "f", "f", "f", "f", "f"),
+        )
 
         try:
             lines, pixelflag, magsys = self.read_point_source_file(filename)
             if pixelflag:
-                self.logger.info("Extended source list input positions assumed to be in units of pixels.")
+                self.logger.info(
+                    "Extended source list input positions assumed to be in units of pixels."
+                )
             else:
-                self.logger.info("Extended list input positions assumed to be in units of RA and Dec.")
+                self.logger.info(
+                    "Extended list input positions assumed to be in units of RA and Dec."
+                )
         except:
-            raise FileNotFoundError("WARNING: Unable to open the extended source list file {}".format(filename))
+            raise FileNotFoundError(
+                "WARNING: Unable to open the extended source list file {}".format(
+                    filename
+                )
+            )
 
         # Create table of point source countrate versus psf size
         if self.add_psf_wings is True:
             self.translate_psf_table(magsys)
 
         # File to save adjusted point source locations
-        eoutcat = self.params['Output']['file'][0:-5] + '_extendedsources.list'
-        eslist = open(eoutcat, 'w')
+        eoutcat = self.params["Output"]["file"][0:-5] + "_extendedsources.list"
+        eslist = open(eoutcat, "w")
 
-        dtor = math.radians(1.)
+        dtor = math.radians(1.0)
         nx = (self.subarray_bounds[2] - self.subarray_bounds[0]) + 1
         ny = (self.subarray_bounds[3] - self.subarray_bounds[1]) + 1
-        xc = (self.subarray_bounds[2] + self.subarray_bounds[0]) / 2.
-        yc = (self.subarray_bounds[3] + self.subarray_bounds[1]) / 2.
+        xc = (self.subarray_bounds[2] + self.subarray_bounds[0]) / 2.0
+        yc = (self.subarray_bounds[3] + self.subarray_bounds[1]) / 2.0
 
         # Write out the RA and Dec of the field center to the output file
         # Also write out column headers to prepare for source list
-        eslist.write(("# Field center (degrees): %13.8f %14.8f y axis rotation angle "
-                      "(degrees): %f  image size: %4.4d %4.4d\n" %
-                      (self.ra, self.dec, self.params['Telescope']['rotation'], nx, ny)))
-        eslist.write('# \n')
-        eslist.write(("#    Index   RA_(hh:mm:ss)   DEC_(dd:mm:ss)   RA_degrees      "
-                      "DEC_degrees     pixel_x   pixel_y    magnitude   counts/sec    counts/frame\n"))
+        eslist.write(
+            (
+                "# Field center (degrees): %13.8f %14.8f y axis rotation angle "
+                "(degrees): %f  image size: %4.4d %4.4d\n"
+                % (self.ra, self.dec, self.params["Telescope"]["rotation"], nx, ny)
+            )
+        )
+        eslist.write("# \n")
+        eslist.write(
+            (
+                "#    Index   RA_(hh:mm:ss)   DEC_(dd:mm:ss)   RA_degrees      "
+                "DEC_degrees     pixel_x   pixel_y    magnitude   counts/sec    counts/frame\n"
+            )
+        )
 
         # Get source index numbers
-        indexes = lines['index']
+        indexes = lines["index"]
 
         # Check the source list and remove any sources that are well outside the
         # field of view of the detector. These sources cause the coordinate
         # conversion to hang.
-        indexes, lines = self.remove_outside_fov_sources(indexes, lines, pixelflag, 4096)
+        indexes, lines = self.remove_outside_fov_sources(
+            indexes, lines, pixelflag, 4096
+        )
 
         # Determine the name of the column to use for source magnitudes
         mag_column = self.select_magnitude_column(lines, filename)
 
         # For NIRISS observations where ghosts will be added, create a table to hold
         # the ghost entries
-        if ghost_search and self.params['Inst']['instrument'].lower() == 'niriss' and self.params['simSignals']['add_ghosts']:
+        if (
+            ghost_search
+            and self.params["Inst"]["instrument"].lower() == "niriss"
+            and self.params["simSignals"]["add_ghosts"]
+        ):
             ghost_source_index = []
             ghost_x = []
             ghost_y = []
@@ -4623,8 +5955,12 @@ class Catalog_seed():
         all_stamps = []
         ghost_i = 0
         for indexnum, values in zip(indexes, lines):
-            if not os.path.isfile(values['filename']):
-                raise FileNotFoundError('{} from extended source catalog does not exist.'.format(values['filename']))
+            if not os.path.isfile(values["filename"]):
+                raise FileNotFoundError(
+                    "{} from extended source catalog does not exist.".format(
+                        values["filename"]
+                    )
+                )
 
             # If the filter/pupil pair is not in the ghost summary file, log that only for the
             # first source. No need to repeat for all sources.
@@ -4633,9 +5969,9 @@ class Catalog_seed():
             else:
                 log_ghost_err = False
 
-            pixelx, pixely, ra, dec, ra_str, dec_str = self.get_positions(values['x_or_RA'],
-                                                                          values['y_or_Dec'],
-                                                                          pixelflag, 4096)
+            pixelx, pixely, ra, dec, ra_str, dec_str = self.get_positions(
+                values["x_or_RA"], values["y_or_Dec"], pixelflag, 4096
+            )
             # Get the input magnitude
             try:
                 mag = float(values[mag_column])
@@ -4644,22 +5980,26 @@ class Catalog_seed():
 
             # Now find out how large the extended source image is, so we
             # know if all, part, or none of it will fall in the field of view
-            ext_stamp = fits.getdata(values['filename'])
+            ext_stamp = fits.getdata(values["filename"])
             if len(ext_stamp.shape) != 2:
-                ext_stamp = fits.getdata(values['filename'], 1)
+                ext_stamp = fits.getdata(values["filename"], 1)
 
             # print('Extended source location, x, y, ra, dec:', pixelx, pixely, ra, dec)
             # print('extended source size:', ext_stamp.shape)
 
             # Rotate the stamp image if requested, but don't do so if the specified pos angle is None
-            ext_stamp = self.rotate_extended_image(ext_stamp, values['pos_angle'])
+            ext_stamp = self.rotate_extended_image(ext_stamp, values["pos_angle"])
 
             eshape = np.array(ext_stamp.shape)
             if len(eshape) == 2:
                 edgey, edgex = eshape // 2
             else:
-                raise ValueError(("WARNING, extended source image {} is not 2D! "
-                                  "This is not supported.".format(values['filename'])))
+                raise ValueError(
+                    (
+                        "WARNING, extended source image {} is not 2D! "
+                        "This is not supported.".format(values["filename"])
+                    )
+                )
 
             # Define the min and max source locations (in pixels) that fall onto the subarray
             # Inlude the effects of a requested grism_direct image, and also keep sources that
@@ -4673,7 +6013,9 @@ class Catalog_seed():
             maxx = self.subarray_bounds[2] - self.subarray_bounds[0]
 
             # Expand the limits if a grism direct image is being made
-            if (self.params['Output']['grism_source_image'] == True) or (self.params['Inst']['mode'] in ["pom", "wfss"]):
+            if (self.params["Output"]["grism_source_image"] == True) or (
+                self.params["Inst"]["mode"] in ["pom", "wfss"]
+            ):
                 transmission_ydim, transmission_xdim = self.transmission_image.shape
                 miny = miny - self.subarray_bounds[1] - self.trans_ff_ymin
                 minx = minx - self.subarray_bounds[0] - self.trans_ff_xmin
@@ -4692,18 +6034,35 @@ class Catalog_seed():
             # Calculate count rate
             norm_factor = np.sum(ext_stamp)
             if mag is not None:
-                countrate = utils.magnitude_to_countrate(self.instrument, self.params['Readout']['filter'],
-                                                         magsys, mag, photfnu=self.photfnu, photflam=self.photflam,
-                                                         vegamag_zeropoint=self.vegazeropoint)
+                countrate = utils.magnitude_to_countrate(
+                    self.instrument,
+                    self.params["Readout"]["filter"],
+                    magsys,
+                    mag,
+                    photfnu=self.photfnu,
+                    photflam=self.photflam,
+                    vegamag_zeropoint=self.vegazeropoint,
+                )
             else:
-                countrate = norm_factor * self.params['simSignals']['extendedscale']
+                countrate = norm_factor * self.params["simSignals"]["extendedscale"]
 
             # Calculate the location and brightness of any ghost, if requested
             # This is done outside the if statement below because sources outside the
             # detector can potentially produce ghosts on the detector
-            if ghost_search and self.params['Inst']['instrument'].lower() == 'niriss' and self.params['simSignals']['add_ghosts']:
-                gx, gy, gmag, gcounts, gfile = self.locate_ghost(pixelx, pixely, countrate, magsys, values, 'extended',
-                                                                 log_skipped_filters=log_ghost_err)
+            if (
+                ghost_search
+                and self.params["Inst"]["instrument"].lower() == "niriss"
+                and self.params["simSignals"]["add_ghosts"]
+            ):
+                gx, gy, gmag, gcounts, gfile = self.locate_ghost(
+                    pixelx,
+                    pixely,
+                    countrate,
+                    magsys,
+                    values,
+                    "extended",
+                    log_skipped_filters=log_ghost_err,
+                )
                 if np.isfinite(gx) and gfile is not None:
                     ghost_source_index.append(indexnum)
                     ghost_x.append(gx)
@@ -4711,8 +6070,14 @@ class Catalog_seed():
                     ghost_mag.append(gmag)
                     ghost_filename.append(gfile)
 
-                    ghost_src, skipped_non_niriss = source_mags_to_ghost_mags(values, self.params['Reffiles']['flux_cal'],
-                                                                              magsys, NIRISS_GHOST_GAP_FILE, self.params['Readout']['filter'], log_skipped_filters=False)
+                    ghost_src, skipped_non_niriss = source_mags_to_ghost_mags(
+                        values,
+                        self.params["Reffiles"]["flux_cal"],
+                        magsys,
+                        NIRISS_GHOST_GAP_FILE,
+                        self.params["Readout"]["filter"],
+                        log_skipped_filters=False,
+                    )
 
                     if ghost_mags is None:
                         ghost_mags = copy.deepcopy(ghost_src)
@@ -4742,9 +6107,17 @@ class Catalog_seed():
                 else:
                     # In this case, no magnitude is given in the extended input list
                     # Assume the input stamp image is in units of e/sec then.
-                    self.logger.warning("No magnitude given for extended source in {}.".format(values['filename']))
-                    self.logger.warning("Assuming the original file is in units of counts per sec.")
-                    self.logger.warning("Multiplying original file values by 'extendedscale'.")
+                    self.logger.warning(
+                        "No magnitude given for extended source in {}.".format(
+                            values["filename"]
+                        )
+                    )
+                    self.logger.warning(
+                        "Assuming the original file is in units of counts per sec."
+                    )
+                    self.logger.warning(
+                        "Multiplying original file values by 'extendedscale'."
+                    )
                     framecounts = countrate * self.frametime
                     magwrite = 99.99999
 
@@ -4759,15 +6132,41 @@ class Catalog_seed():
                 extSourceList.add_row(entry)
 
                 # Write out positions, distances, and counts to the output file
-                eslist.write(("%i %s %s %14.8f %14.8f %9.3f %9.3f  %9.3f  %13.6e   %13.6e\n" %
-                             (indexnum, ra_str, dec_str, ra, dec, pixelx, pixely, magwrite, countrate,
-                              framecounts)))
+                eslist.write(
+                    (
+                        "%i %s %s %14.8f %14.8f %9.3f %9.3f  %9.3f  %13.6e   %13.6e\n"
+                        % (
+                            indexnum,
+                            ra_str,
+                            dec_str,
+                            ra,
+                            dec,
+                            pixelx,
+                            pixely,
+                            magwrite,
+                            countrate,
+                            framecounts,
+                        )
+                    )
+                )
 
-        if ghost_search and self.params['Inst']['instrument'].lower() == 'niriss' and \
-           self.params['simSignals']['add_ghosts'] and skipped_non_niriss:
-            self.logger.info("Skipped the calculation of ghost source magnitudes for the non-NIRISS magnitude columns in {}".format(filename))
+        if (
+            ghost_search
+            and self.params["Inst"]["instrument"].lower() == "niriss"
+            and self.params["simSignals"]["add_ghosts"]
+            and skipped_non_niriss
+        ):
+            self.logger.info(
+                "Skipped the calculation of ghost source magnitudes for the non-NIRISS magnitude columns in {}".format(
+                    filename
+                )
+            )
 
-        self.logger.info("Number of extended sources found within or close to the requested aperture: {}".format(len(extSourceList)))
+        self.logger.info(
+            "Number of extended sources found within or close to the requested aperture: {}".format(
+                len(extSourceList)
+            )
+        )
         # close the output file
         eslist.close()
 
@@ -4776,8 +6175,19 @@ class Catalog_seed():
             self.logger.info("Warning: no extended sources within the requested array.")
             self.logger.info("The extended source image option is being turned off")
 
-        if ghost_search and self.params['Inst']['instrument'].lower() == 'niriss' and self.params['simSignals']['add_ghosts']:
-            ghost_catalog_file = self.save_ghost_catalog(ghost_x, ghost_y, ghost_filename, ghost_mags, filename, ghost_source_index)
+        if (
+            ghost_search
+            and self.params["Inst"]["instrument"].lower() == "niriss"
+            and self.params["simSignals"]["add_ghosts"]
+        ):
+            ghost_catalog_file = self.save_ghost_catalog(
+                ghost_x,
+                ghost_y,
+                ghost_filename,
+                ghost_mags,
+                filename,
+                ghost_source_index,
+            )
         else:
             ghost_catalog_file = None
 
@@ -4808,13 +6218,13 @@ class Catalog_seed():
 
         # Don't rotate if the specified position angle is None.
         # check for both Python None and string 'None' or 'none'
-        if pos_angle is None or str(pos_angle).lower() == 'none':
+        if pos_angle is None or str(pos_angle).lower() == "none":
             return stamp_image
 
         # Add later: check for WCS and use that
         x_pos_ang = self.calc_x_position_angle_extended(pos_angle)
 
-        rotated = rotate(stamp_image, x_pos_ang, mode='constant', cval=0.)
+        rotated = rotate(stamp_image, x_pos_ang, mode="constant", cval=0.0)
         return rotated
 
     def make_extended_source_image(self, extSources, extStamps, extConvolutions):
@@ -4833,15 +6243,17 @@ class Catalog_seed():
 
         if len(extConvolutions) > 0:
             if extConvolutions[0]:
-                self.logger.info('Convolving extended sources with PSF prior to adding to seed image.')
+                self.logger.info(
+                    "Convolving extended sources with PSF prior to adding to seed image."
+                )
             else:
-                self.logger.info('Extended sources will not be convolved with the PSF.')
+                self.logger.info("Extended sources will not be convolved with the PSF.")
 
         # Loop over the entries in the source list
         for entry, stamp, convolution in zip(extSources, extStamps, extConvolutions):
             stamp_dims = stamp.shape
 
-            stamp *= entry['countrate_e/s']
+            stamp *= entry["countrate_e/s"]
 
             # If the stamp needs to be convolved with the NIRCam PSF,
             # create the correct PSF  here and read it in
@@ -4851,9 +6263,11 @@ class Catalog_seed():
                 # the psf size. This is so the upcoming convolution will
                 # produce an output that includes the wings of the PSF
                 psf_dimensions = np.array(self.psf_library.data.shape[-2:])
-                psf_shape = np.array((psf_dimensions / self.psf_library_oversamp) -
-                                     self.params['simSignals']['gridded_psf_library_row_padding']).astype(np.int)
-                if ((stamp_dims[0] < psf_shape[0]) or (stamp_dims[1] < psf_shape[1])):
+                psf_shape = np.array(
+                    (psf_dimensions / self.psf_library_oversamp)
+                    - self.params["simSignals"]["gridded_psf_library_row_padding"]
+                ).astype(np.int)
+                if (stamp_dims[0] < psf_shape[0]) or (stamp_dims[1] < psf_shape[1]):
                     stamp = self.enlarge_stamp(stamp, psf_shape)
                     stamp_dims = stamp.shape
 
@@ -4863,8 +6277,13 @@ class Catalog_seed():
                 # approach that uses the full convolution including the wings.
                 # Whether this is a problem or not will depend on the relative
                 # sizes of the photometry aperture versus the extended source.
-                psf_image, min_x, min_y, wings_added = self.create_psf_stamp(entry['pixelx'], entry['pixely'],
-                                                                             psf_shape[1], psf_shape[0], ignore_detector=True)
+                psf_image, min_x, min_y, wings_added = self.create_psf_stamp(
+                    entry["pixelx"],
+                    entry["pixely"],
+                    psf_shape[1],
+                    psf_shape[0],
+                    ignore_detector=True,
+                )
 
                 # Skip sources that fall completely off the detector
                 if psf_image is None:
@@ -4879,62 +6298,104 @@ class Catalog_seed():
                 # We also need to shift the location of the wing array on the
                 # detector by 1
                 if wings_added:
-                    x_delta = int(np.modf(entry['pixelx'])[0] > 0.5)
-                    y_delta = int(np.modf(entry['pixely'])[0] > 0.5)
+                    x_delta = int(np.modf(entry["pixelx"])[0] > 0.5)
+                    y_delta = int(np.modf(entry["pixely"])[0] > 0.5)
                 else:
                     x_delta = 0
                     y_delta = 0
 
                 # Calculate the coordinates describing the overlap
                 # between the extended image and the PSF image
-                xap, yap, xpts, ypts, (i1, i2), (j1, j2), (k1, k2), \
-                    (l1, l2) = self.create_psf_stamp_coords(entry['pixelx']+x_delta, entry['pixely']+y_delta,
-                                                            stamp_dims, stamp_dims[1] // 2, stamp_dims[0] // 2,
-                                                            coord_sys='aperture')
+                (
+                    xap,
+                    yap,
+                    xpts,
+                    ypts,
+                    (i1, i2),
+                    (j1, j2),
+                    (k1, k2),
+                    (l1, l2),
+                ) = self.create_psf_stamp_coords(
+                    entry["pixelx"] + x_delta,
+                    entry["pixely"] + y_delta,
+                    stamp_dims,
+                    stamp_dims[1] // 2,
+                    stamp_dims[0] // 2,
+                    coord_sys="aperture",
+                )
 
                 if None in [i1, i2, j1, j2, k1, k2, l1, l2]:
                     continue
 
                 # Convolve the extended image with the stamp image
-                stamp = s1.fftconvolve(stamp, psf_image, mode='same')
+                stamp = s1.fftconvolve(stamp, psf_image, mode="same")
             else:
                 # If no PSF convolution is to be done, find the
                 # coordinates describing the overlap between the
                 # original stamp image and the aperture
-                xap, yap, xpts, ypts, (i1, i2), (j1, j2), (k1, k2), \
-                    (l1, l2) = self.create_psf_stamp_coords(entry['pixelx'], entry['pixely'],
-                                                            stamp_dims, stamp_dims[1] // 2, stamp_dims[0] // 2,
-                                                            coord_sys='aperture')
+                (
+                    xap,
+                    yap,
+                    xpts,
+                    ypts,
+                    (i1, i2),
+                    (j1, j2),
+                    (k1, k2),
+                    (l1, l2),
+                ) = self.create_psf_stamp_coords(
+                    entry["pixelx"],
+                    entry["pixely"],
+                    stamp_dims,
+                    stamp_dims[1] // 2,
+                    stamp_dims[0] // 2,
+                    coord_sys="aperture",
+                )
 
             # Make sure the stamp is at least partially on the detector
             if i1 is not None and i2 is not None and j1 is not None and j2 is not None:
 
                 # Now add the stamp to the main image
-                if ((j2 > j1) and (i2 > i1) and (l2 > l1) and (k2 > k1) and (j1 < yd) and (i1 < xd)):
+                if (
+                    (j2 > j1)
+                    and (i2 > i1)
+                    and (l2 > l1)
+                    and (k2 > k1)
+                    and (j1 < yd)
+                    and (i1 < xd)
+                ):
                     stamp_to_add = stamp[l1:l2, k1:k2]
                     extimage[j1:j2, i1:i2] += stamp_to_add
 
                 # Add source to segmentation map
-                segmentation.add_object_threshold(stamp_to_add, j1, i1, entry['index'],
-                                                  self.segmentation_threshold)
+                segmentation.add_object_threshold(
+                    stamp_to_add, j1, i1, entry["index"], self.segmentation_threshold
+                )
 
-                if self.params['Inst']['mode'] in DISPERSED_MODES:
+                if self.params["Inst"]["mode"] in DISPERSED_MODES:
                     # Add source to seed cube
                     stamp = np.zeros(stamp_to_add.shape)
                     flag = stamp_to_add >= self.segmentation_threshold
-                    stamp[flag] = entry['index']
-                    seed_cube[entry['index']] = [i1, j1, stamp_to_add*1, stamp*1]
+                    stamp[flag] = entry["index"]
+                    seed_cube[entry["index"]] = [i1, j1, stamp_to_add * 1, stamp * 1]
 
                 self.n_extend += 1
 
-        if self.params['Inst']['mode'] in DISPERSED_MODES:
+        if self.params["Inst"]["mode"] in DISPERSED_MODES:
             # Save the seed cube
-            pickle.dump(seed_cube, open("%s_extended_seed_cube.pickle" % (self.basename), "wb"), protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump(
+                seed_cube,
+                open("%s_extended_seed_cube.pickle" % (self.basename), "wb"),
+                protocol=pickle.HIGHEST_PROTOCOL,
+            )
 
         if self.n_extend == 0:
             self.logger.info("No extended sources present within the aperture.")
         else:
-            self.logger.info('Number of extended sources present within the aperture: {}'.format(self.n_extend))
+            self.logger.info(
+                "Number of extended sources present within the aperture: {}".format(
+                    self.n_extend
+                )
+            )
         return extimage, segmentation.segmap
 
     def enlarge_stamp(self, image, dims):
@@ -4980,7 +6441,7 @@ class Catalog_seed():
             dim_y = image_size_y
 
         array = np.zeros((dim_y, dim_x))
-        array[dy:dim_y-dy, dx:dim_x-dx] = image
+        array[dy : dim_y - dy, dx : dim_x - dx] = image
         return array
 
     def seg_from_photutils(self, image, number, noise):
@@ -4988,7 +6449,7 @@ class Catalog_seed():
         # using photutils. In this case, the input noise
         # represents the single frame noise for the appropriate
         # observing mode
-        map = detect_sources(image, noise * 3., 8).data + number
+        map = detect_sources(image, noise * 3.0, 8).data + number
         return map
 
     def makeFilterTable(self):
@@ -4999,21 +6460,25 @@ class Catalog_seed():
         # FUTURE WORK: If the countrates are left as 0, then pysynphot will
         # be used to calculate them later
         try:
-            cvals_tab = ascii.read(self.params['Reffiles']['phot'])
-            instrumentfilternames = cvals_tab['filter'].data
-            stringcountrates = cvals_tab['countrate_for_vegamag15'].data
+            cvals_tab = ascii.read(self.params["Reffiles"]["phot"])
+            instrumentfilternames = cvals_tab["filter"].data
+            stringcountrates = cvals_tab["countrate_for_vegamag15"].data
             instrumentmag15countrates = [float(s) for s in stringcountrates]
-            strinstrumentqy = cvals_tab['quantum_yield'].data
+            strinstrumentqy = cvals_tab["quantum_yield"].data
             qy = [float(s) for s in strinstrumentqy]
-            self.countvalues = dict(zip(instrumentfilternames, instrumentmag15countrates))
+            self.countvalues = dict(
+                zip(instrumentfilternames, instrumentmag15countrates)
+            )
             self.qydict = dict(zip(instrumentfilternames, qy))
         except:
-            raise IOError("WARNING: Unable to read in {}.".format(self.params['Reffiles']['phot']))
+            raise IOError(
+                "WARNING: Unable to read in {}.".format(self.params["Reffiles"]["phot"])
+            )
 
     def readParameterFile(self):
         """Read in the parameter file"""
         # List of fields in the yaml file to check for extra colons
-        search_cats = ['title:', 'PI_Name:', 'Science_category:', 'observation_label:']
+        search_cats = ["title:", "PI_Name:", "Science_category:", "observation_label:"]
 
         # Open the yaml file and check for the presence of extra colons
         adjust_file = False
@@ -5024,33 +6489,33 @@ class Catalog_seed():
                     if search_term in line:
                         idx = []
                         hashidx = [200]
-                        for m in re.finditer(':', line):
+                        for m in re.finditer(":", line):
                             idx.append(m.start())
-                        for mm in re.finditer('#', line):
+                        for mm in re.finditer("#", line):
                             hashidx.append(mm.start())
                         num = np.sum(np.array(idx) < min(hashidx))
                         if num > 1:
                             adjust_file = True
-                            later_string = line[idx[0]+1:]
-                            later_string = later_string.replace(':', ',')
-                            newline = line[0: idx[0]+1] + later_string
+                            later_string = line[idx[0] + 1 :]
+                            later_string = later_string.replace(":", ",")
+                            newline = line[0 : idx[0] + 1] + later_string
                             read_data[i] = newline
 
         if adjust_file:
             # Make a copy of the original file and then delete it
             param_dir, param_file = os.path.split(self.paramfile)
-            yaml_copy = os.path.join(param_dir, 'orig_{}'.format(param_file))
+            yaml_copy = os.path.join(param_dir, "orig_{}".format(param_file))
             shutil.copy2(self.paramfile, yaml_copy)
             os.remove(self.paramfile)
 
             # Write the adjusted lines to a new copy of the input file
-            with open(self.paramfile, 'w') as f:
+            with open(self.paramfile, "w") as f:
                 for item in read_data:
                     f.write("{}".format(item))
 
         # Load the yaml file
         try:
-            with open(self.paramfile, 'r') as infile:
+            with open(self.paramfile, "r") as infile:
                 self.params = yaml.safe_load(infile)
         except (ScannerError, FileNotFoundError, IOError) as e:
             self.logger.info(e)
@@ -5058,31 +6523,49 @@ class Catalog_seed():
     def check_params(self):
         """Check input parameters for expected datatypes, values"""
         # Check instrument name
-        if self.params['Inst']['instrument'].lower() not in INST_LIST:
-            raise NotImplementedError("WARNING: {} instrument not implemented within ramp simulator")
+        if self.params["Inst"]["instrument"].lower() not in INST_LIST:
+            raise NotImplementedError(
+                "WARNING: {} instrument not implemented within ramp simulator"
+            )
 
         # Check entered mode:
-        possibleModes = MODES[self.params['Inst']['instrument'].lower()]
-        self.params['Inst']['mode'] = self.params['Inst']['mode'].lower()
-        if self.params['Inst']['mode'] in possibleModes:
+        possibleModes = MODES[self.params["Inst"]["instrument"].lower()]
+        self.params["Inst"]["mode"] = self.params["Inst"]["mode"].lower()
+        if self.params["Inst"]["mode"] in possibleModes:
             pass
         else:
-            raise ValueError(("WARNING: unrecognized mode {} for {}. Must be one of: {}"
-                              .format(self.params['Inst']['mode'],
-                                      self.params['Inst']['instrument'], possibleModes)))
+            raise ValueError(
+                (
+                    "WARNING: unrecognized mode {} for {}. Must be one of: {}".format(
+                        self.params["Inst"]["mode"],
+                        self.params["Inst"]["instrument"],
+                        possibleModes,
+                    )
+                )
+            )
 
         # Check telescope tracking entry
-        self.params['Telescope']['tracking'] = self.params['Telescope']['tracking'].lower()
-        if self.params['Telescope']['tracking'] not in TRACKING_LIST:
-            raise ValueError(("WARNING: telescope tracking set to {}, but must be one "
-                              "of {}.".format(self.params['Telescope']['tracking'],
-                                              TRACKING_LIST)))
+        self.params["Telescope"]["tracking"] = self.params["Telescope"][
+            "tracking"
+        ].lower()
+        if self.params["Telescope"]["tracking"] not in TRACKING_LIST:
+            raise ValueError(
+                (
+                    "WARNING: telescope tracking set to {}, but must be one "
+                    "of {}.".format(self.params["Telescope"]["tracking"], TRACKING_LIST)
+                )
+            )
 
         # Non-sidereal WFSS observations are not yet supported
-        if self.params['Telescope']['tracking'] == 'non-sidereal' and \
-           self.params['Inst']['mode'] in ['wfss', 'ts_grism']:
-            raise ValueError(("WARNING: wfss observations with non-sidereal "
-                              "targets not yet supported."))
+        if self.params["Telescope"]["tracking"] == "non-sidereal" and self.params[
+            "Inst"
+        ]["mode"] in ["wfss", "ts_grism"]:
+            raise ValueError(
+                (
+                    "WARNING: wfss observations with non-sidereal "
+                    "targets not yet supported."
+                )
+            )
 
         # Set nframe and nskip according to the values in the
         # readout pattern definition file
@@ -5092,62 +6575,97 @@ class Catalog_seed():
         # indicating the step should be skipped. Create a dictionary of steps
         # and populate with True or False
         self.runStep = {}
-        self.runStep['pixelflat'] = self.checkRunStep(self.params['Reffiles']['pixelflat'])
-        self.runStep['illuminationflat'] = self.checkRunStep(self.params['Reffiles']['illumflat'])
-        self.runStep['astrometric'] = self.checkRunStep(self.params['Reffiles']['astrometric'])
+        self.runStep["pixelflat"] = self.checkRunStep(
+            self.params["Reffiles"]["pixelflat"]
+        )
+        self.runStep["illuminationflat"] = self.checkRunStep(
+            self.params["Reffiles"]["illumflat"]
+        )
+        self.runStep["astrometric"] = self.checkRunStep(
+            self.params["Reffiles"]["astrometric"]
+        )
         # self.runStep['distortion_coeffs'] = self.checkRunStep(self.params['Reffiles']['distortion_coeffs'])
-        self.runStep['ipc'] = self.checkRunStep(self.params['Reffiles']['ipc'])
-        self.runStep['crosstalk'] = self.checkRunStep(self.params['Reffiles']['crosstalk'])
-        self.runStep['occult'] = self.checkRunStep(self.params['Reffiles']['occult'])
-        self.runStep['pointsource'] = self.checkRunStep(self.params['simSignals']['pointsource'])
-        self.runStep['galaxies'] = self.checkRunStep(self.params['simSignals']['galaxyListFile'])
-        self.runStep['extendedsource'] = self.checkRunStep(self.params['simSignals']['extended'])
-        self.runStep['movingTargets'] = self.checkRunStep(self.params['simSignals']['movingTargetList'])
-        self.runStep['movingTargetsSersic'] = self.checkRunStep(self.params['simSignals']['movingTargetSersic'])
-        self.runStep['movingTargetsExtended'] = self.checkRunStep(self.params['simSignals']['movingTargetExtended'])
-        self.runStep['MT_tracking'] = self.checkRunStep(self.params['simSignals']['movingTargetToTrack'])
-        self.runStep['zodiacal'] = self.checkRunStep(self.params['simSignals']['zodiacal'])
-        self.runStep['scattered'] = self.checkRunStep(self.params['simSignals']['scattered'])
+        self.runStep["ipc"] = self.checkRunStep(self.params["Reffiles"]["ipc"])
+        self.runStep["crosstalk"] = self.checkRunStep(
+            self.params["Reffiles"]["crosstalk"]
+        )
+        self.runStep["occult"] = self.checkRunStep(self.params["Reffiles"]["occult"])
+        self.runStep["pointsource"] = self.checkRunStep(
+            self.params["simSignals"]["pointsource"]
+        )
+        self.runStep["galaxies"] = self.checkRunStep(
+            self.params["simSignals"]["galaxyListFile"]
+        )
+        self.runStep["extendedsource"] = self.checkRunStep(
+            self.params["simSignals"]["extended"]
+        )
+        self.runStep["movingTargets"] = self.checkRunStep(
+            self.params["simSignals"]["movingTargetList"]
+        )
+        self.runStep["movingTargetsSersic"] = self.checkRunStep(
+            self.params["simSignals"]["movingTargetSersic"]
+        )
+        self.runStep["movingTargetsExtended"] = self.checkRunStep(
+            self.params["simSignals"]["movingTargetExtended"]
+        )
+        self.runStep["MT_tracking"] = self.checkRunStep(
+            self.params["simSignals"]["movingTargetToTrack"]
+        )
+        self.runStep["zodiacal"] = self.checkRunStep(
+            self.params["simSignals"]["zodiacal"]
+        )
+        self.runStep["scattered"] = self.checkRunStep(
+            self.params["simSignals"]["scattered"]
+        )
         # self.runStep['fwpw'] = self.checkRunStep(self.params['Reffiles']['filtpupilcombo'])
 
         # Notify user if no catalogs are provided
-        if self.params['simSignals']['pointsource'] == 'None':
-            self.logger.info('No point source catalog provided in yaml file.')
+        if self.params["simSignals"]["pointsource"] == "None":
+            self.logger.info("No point source catalog provided in yaml file.")
 
-        if self.params['simSignals']['galaxyListFile'] == 'None':
-            self.logger.info('No galaxy catalog provided in yaml file.')
+        if self.params["simSignals"]["galaxyListFile"] == "None":
+            self.logger.info("No galaxy catalog provided in yaml file.")
 
         # Determine the instrument module and detector from the aperture name
-        aper_name = self.params['Readout']['array_name']
+        aper_name = self.params["Readout"]["array_name"]
         self.instrument = self.params["Inst"]["instrument"].lower()
         try:
             # previously detector was e.g. 'A1'. Let's make it NRCA1 to be more in
             # line with other instrument formats
             # detector = self.subdict[self.subdict['AperName'] == aper_name]['Detector'][0]
             # module = detector[0]
-            detector = aper_name.split('_')[0]
+            detector = aper_name.split("_")[0]
             self.detector = detector
-            if self.instrument == 'nircam':
+            if self.instrument == "nircam":
                 module = detector[3]
-            elif self.instrument == 'niriss':
+            elif self.instrument == "niriss":
                 module = detector[0]
-            elif self.instrument == 'fgs':
+            elif self.instrument == "fgs":
                 detector = detector.replace("FGS", "GUIDER")
                 module = detector[0]
         except IndexError:
-            raise ValueError('Unable to determine the detector/module in aperture {}'.format(aper_name))
+            raise ValueError(
+                "Unable to determine the detector/module in aperture {}".format(
+                    aper_name
+                )
+            )
 
         # If instrument is FGS, then force filter to be 'NA' for the purposes
         # of constructing the correct PSF input path name. Then change to be
         # the DMS-required "N/A" when outputs are saved
-        if self.instrument == 'fgs':
-            self.params['Readout']['filter'] = 'NA'
-            self.params['Readout']['pupil'] = 'NA'
+        if self.instrument == "fgs":
+            self.params["Readout"]["filter"] = "NA"
+            self.params["Readout"]["pupil"] = "NA"
 
         # Get basic flux calibration information
-        self.vegazeropoint, self.photflam, self.photfnu, self.pivot = \
-            fluxcal_info(self.params['Reffiles']['flux_cal'], self.instrument, self.params['Readout']['filter'],
-                         self.params['Readout']['pupil'], detector, module)
+        self.vegazeropoint, self.photflam, self.photfnu, self.pivot = fluxcal_info(
+            self.params["Reffiles"]["flux_cal"],
+            self.instrument,
+            self.params["Readout"]["filter"],
+            self.params["Readout"]["pupil"],
+            detector,
+            module,
+        )
 
         # Get the threshold signal value for pixels to be included in the
         # segmentation map. Pixels with signals greater than or equal to
@@ -5157,154 +6675,254 @@ class Catalog_seed():
         # Convert the input RA and Dec of the pointing position into floats
         # Check to see if the inputs are in decimal units or hh:mm:ss strings
         try:
-            self.ra = float(self.params['Telescope']['ra'])
+            self.ra = float(self.params["Telescope"]["ra"])
 
-            self.dec = float(self.params['Telescope']['dec'])
+            self.dec = float(self.params["Telescope"]["dec"])
         except:
-            self.ra, self.dec = utils.parse_RA_Dec(self.params['Telescope']['ra'],
-                                                   self.params['Telescope']['dec'])
+            self.ra, self.dec = utils.parse_RA_Dec(
+                self.params["Telescope"]["ra"], self.params["Telescope"]["dec"]
+            )
 
-        #if abs(self.dec) > 90. or self.ra < 0. or self.ra > 360. or \
-        if abs(self.dec) > 90. or \
-           self.ra is None or self.dec is None:
-            raise ValueError("WARNING: bad requested RA and Dec {} {}".format(self.ra, self.dec))
+        # if abs(self.dec) > 90. or self.ra < 0. or self.ra > 360. or \
+        if abs(self.dec) > 90.0 or self.ra is None or self.dec is None:
+            raise ValueError(
+                "WARNING: bad requested RA and Dec {} {}".format(self.ra, self.dec)
+            )
 
         # make sure the rotation angle is a float
         try:
-            self.params['Telescope']["rotation"] = float(self.params['Telescope']["rotation"])
+            self.params["Telescope"]["rotation"] = float(
+                self.params["Telescope"]["rotation"]
+            )
         except ValueError:
-            self.logger.error(("ERROR: bad rotation value {}, setting to zero."
-                               .format(self.params['Telescope']["rotation"])))
-            self.params['Telescope']["rotation"] = 0.
+            self.logger.error(
+                (
+                    "ERROR: bad rotation value {}, setting to zero.".format(
+                        self.params["Telescope"]["rotation"]
+                    )
+                )
+            )
+            self.params["Telescope"]["rotation"] = 0.0
 
-        siaf_inst = self.params['Inst']['instrument']
-        if siaf_inst.lower() == 'nircam':
-            siaf_inst = 'NIRCam'
+        siaf_inst = self.params["Inst"]["instrument"]
+        if siaf_inst.lower() == "nircam":
+            siaf_inst = "NIRCam"
         instrument_siaf = siaf_interface.get_instance(siaf_inst)
-        self.siaf = instrument_siaf[self.params['Readout']['array_name']]
-        self.local_roll, self.attitude_matrix, self.ffsize, \
-            self.subarray_bounds = siaf_interface.get_siaf_information(instrument_siaf,
-                                                                       self.params['Readout']['array_name'],
-                                                                       self.ra, self.dec,
-                                                                       self.params['Telescope']['rotation'])
+        self.siaf = instrument_siaf[self.params["Readout"]["array_name"]]
+        (
+            self.local_roll,
+            self.attitude_matrix,
+            self.ffsize,
+            self.subarray_bounds,
+        ) = siaf_interface.get_siaf_information(
+            instrument_siaf,
+            self.params["Readout"]["array_name"],
+            self.ra,
+            self.dec,
+            self.params["Telescope"]["rotation"],
+        )
 
         # If the exposure uses one of the grism time series apertures, then read/determine
         # the intermediate aperture to use, and get associated SIAF information
         self.determine_intermediate_aperture(instrument_siaf)
 
-        self.logger.info('SIAF: Requested {}   got {}'.format(self.params['Readout']['array_name'], self.siaf.AperName))
+        self.logger.info(
+            "SIAF: Requested {}   got {}".format(
+                self.params["Readout"]["array_name"], self.siaf.AperName
+            )
+        )
 
         # If optical ghosts are to be added, make sure the ghost gap file is present in the
         # config directory. This will be downloaded from the niriss_ghost github repo regardless of whether
         # the file is already present, in order to ensure we have the latest copy.
-        if self.params['Inst']['instrument'].lower() == 'niriss' and self.params['simSignals']['add_ghosts']:
-            self.logger.info('Downloading NIRISS ghost gap file...')
+        if (
+            self.params["Inst"]["instrument"].lower() == "niriss"
+            and self.params["simSignals"]["add_ghosts"]
+        ):
+            self.logger.info("Downloading NIRISS ghost gap file...")
             config_dir, ghost_file = os.path.split(NIRISS_GHOST_GAP_FILE)
-            download_file(NIRISS_GHOST_GAP_URL, ghost_file, output_directory=config_dir, force=True)
+            download_file(
+                NIRISS_GHOST_GAP_URL,
+                ghost_file,
+                output_directory=config_dir,
+                force=True,
+            )
 
         # Set the background value if the high/medium/low settings
         # are used
-        bkgdrate_options = ['high', 'medium', 'low']
+        bkgdrate_options = ["high", "medium", "low"]
 
         # For WFSS observations, we want the background in the direct
         # seed image to be zero. The dispersed background will be created
         # and added as part of the dispersion process
-        if self.params['Inst']['mode'].lower() == 'wfss':
-            self.params['simSignals']['bkgdrate'] = 0.
+        if self.params["Inst"]["mode"].lower() == "wfss":
+            self.params["simSignals"]["bkgdrate"] = 0.0
 
-        if np.isreal(self.params['simSignals']['bkgdrate']):
-            self.params['simSignals']['bkgdrate'] = float(self.params['simSignals']['bkgdrate'])
+        if np.isreal(self.params["simSignals"]["bkgdrate"]):
+            self.params["simSignals"]["bkgdrate"] = float(
+                self.params["simSignals"]["bkgdrate"]
+            )
         else:
-            if self.params['simSignals']['bkgdrate'].lower() in bkgdrate_options:
-                self.logger.info(("Calculating background rate using jwst_background "
-                                  "based on {} level".format(self.params['simSignals']['bkgdrate'])))
+            if self.params["simSignals"]["bkgdrate"].lower() in bkgdrate_options:
+                self.logger.info(
+                    (
+                        "Calculating background rate using jwst_background "
+                        "based on {} level".format(
+                            self.params["simSignals"]["bkgdrate"]
+                        )
+                    )
+                )
 
                 # Find the appropriate filter throughput file
-                if os.path.split(self.params['Reffiles']['filter_throughput'])[1] == 'placeholder.txt':
-                    filter_file = utils.get_filter_throughput_file(self.params['Inst']['instrument'].lower(),
-                                                                   self.params['Readout']['filter'],
-                                                                   self.params['Readout']['pupil'],
-                                                                   fgs_detector=detector, nircam_module=module)
+                if (
+                    os.path.split(self.params["Reffiles"]["filter_throughput"])[1]
+                    == "placeholder.txt"
+                ):
+                    filter_file = utils.get_filter_throughput_file(
+                        self.params["Inst"]["instrument"].lower(),
+                        self.params["Readout"]["filter"],
+                        self.params["Readout"]["pupil"],
+                        fgs_detector=detector,
+                        nircam_module=module,
+                    )
                 else:
-                    filter_file = self.params['Reffiles']['filter_throughput']
+                    filter_file = self.params["Reffiles"]["filter_throughput"]
 
-                self.logger.info(("Using {} filter throughput file for background calculation."
-                                  .format(filter_file)))
+                self.logger.info(
+                    (
+                        "Using {} filter throughput file for background calculation.".format(
+                            filter_file
+                        )
+                    )
+                )
 
                 # To translate background signals from MJy/sr to e-/sec to
                 # ADU/sec, we need a mean gain value
-                if self.params['Inst']['instrument'].lower() == 'nircam':
-                    if '5' in detector:
-                        shorthand = 'lw{}'.format(module.lower())
+                if self.params["Inst"]["instrument"].lower() == "nircam":
+                    if "5" in detector:
+                        shorthand = "lw{}".format(module.lower())
                     else:
-                        shorthand = 'sw{}'.format(module.lower())
-                    self.gain_value = MEAN_GAIN_VALUES[self.params['Inst']['instrument'].lower()][shorthand]
-                elif self.params['Inst']['instrument'].lower() == 'niriss':
-                    self.gain_value = MEAN_GAIN_VALUES[self.params['Inst']['instrument'].lower()]
-                elif self.params['Inst']['instrument'].lower() == 'fgs':
-                    self.gain_value = MEAN_GAIN_VALUES[self.params['Inst']['instrument'].lower()][detector.lower()]
+                        shorthand = "sw{}".format(module.lower())
+                    self.gain_value = MEAN_GAIN_VALUES[
+                        self.params["Inst"]["instrument"].lower()
+                    ][shorthand]
+                elif self.params["Inst"]["instrument"].lower() == "niriss":
+                    self.gain_value = MEAN_GAIN_VALUES[
+                        self.params["Inst"]["instrument"].lower()
+                    ]
+                elif self.params["Inst"]["instrument"].lower() == "fgs":
+                    self.gain_value = MEAN_GAIN_VALUES[
+                        self.params["Inst"]["instrument"].lower()
+                    ][detector.lower()]
 
-                if self.params['simSignals']['use_dateobs_for_background']:
-                    bkgd_wave, bkgd_spec = backgrounds.day_of_year_background_spectrum(self.params['Telescope']['ra'],
-                                                                                       self.params['Telescope']['dec'],
-                                                                                       self.params['Output']['date_obs'])
-                    self.params['simSignals']['bkgdrate'] = backgrounds.calculate_background(self.ra, self.dec,
-                                                                                             filter_file, True,
-                                                                                             self.gain_value, self.siaf,
-                                                                                             back_wave=bkgd_wave,
-                                                                                             back_sig=bkgd_spec)
-                    self.logger.info("Background rate determined using date_obs: {}".format(self.params['Output']['date_obs']))
+                if self.params["simSignals"]["use_dateobs_for_background"]:
+                    bkgd_wave, bkgd_spec = backgrounds.day_of_year_background_spectrum(
+                        self.params["Telescope"]["ra"],
+                        self.params["Telescope"]["dec"],
+                        self.params["Output"]["date_obs"],
+                    )
+                    self.params["simSignals"][
+                        "bkgdrate"
+                    ] = backgrounds.calculate_background(
+                        self.ra,
+                        self.dec,
+                        filter_file,
+                        True,
+                        self.gain_value,
+                        self.siaf,
+                        back_wave=bkgd_wave,
+                        back_sig=bkgd_spec,
+                    )
+                    self.logger.info(
+                        "Background rate determined using date_obs: {}".format(
+                            self.params["Output"]["date_obs"]
+                        )
+                    )
                 else:
                     # Here the background level is based on high/medium/low rather than date
-                    orig_level = copy.deepcopy(self.params['simSignals']['bkgdrate'])
-                    self.params['simSignals']['bkgdrate'] = backgrounds.calculate_background(self.ra, self.dec,
-                                                                                             filter_file, False,
-                                                                                             self.gain_value, self.siaf,
-                                                                                             level=self.params['simSignals']['bkgdrate'].lower())
-                    self.logger.info("Background rate determined using {} level: {}".format(orig_level, self.params['simSignals']['bkgdrate']))
+                    orig_level = copy.deepcopy(self.params["simSignals"]["bkgdrate"])
+                    self.params["simSignals"][
+                        "bkgdrate"
+                    ] = backgrounds.calculate_background(
+                        self.ra,
+                        self.dec,
+                        filter_file,
+                        False,
+                        self.gain_value,
+                        self.siaf,
+                        level=self.params["simSignals"]["bkgdrate"].lower(),
+                    )
+                    self.logger.info(
+                        "Background rate determined using {} level: {}".format(
+                            orig_level, self.params["simSignals"]["bkgdrate"]
+                        )
+                    )
             else:
-                raise ValueError(("WARNING: unrecognized background rate value. "
-                                  "Must be either a number or one of: {}"
-                                  .format(bkgdrate_options)))
+                raise ValueError(
+                    (
+                        "WARNING: unrecognized background rate value. "
+                        "Must be either a number or one of: {}".format(bkgdrate_options)
+                    )
+                )
 
         # Check that the various scaling factors are floats and within a reasonable range
         # self.params['cosmicRay']['scale'] = self.checkParamVal(self.params['cosmicRay']['scale'], 'cosmicRay', 0, 100, 1)
-        self.params['simSignals']['extendedscale'] = self.checkParamVal(self.params['simSignals']['extendedscale'],
-                                                                        'extendedEmission', 0, 10000, 1)
-        self.params['simSignals']['zodiscale'] = self.checkParamVal(self.params['simSignals']['zodiscale'],
-                                                                    'zodi', 0, 10000, 1)
-        self.params['simSignals']['scatteredscale'] = self.checkParamVal(self.params['simSignals']['scatteredscale'],
-                                                                         'scatteredLight', 0, 10000, 1)
+        self.params["simSignals"]["extendedscale"] = self.checkParamVal(
+            self.params["simSignals"]["extendedscale"], "extendedEmission", 0, 10000, 1
+        )
+        self.params["simSignals"]["zodiscale"] = self.checkParamVal(
+            self.params["simSignals"]["zodiscale"], "zodi", 0, 10000, 1
+        )
+        self.params["simSignals"]["scatteredscale"] = self.checkParamVal(
+            self.params["simSignals"]["scatteredscale"], "scatteredLight", 0, 10000, 1
+        )
 
         # make sure the requested output format is an allowed value
-        if self.params['Output']['format'] not in ALLOWEDOUTPUTFORMATS:
-            raise ValueError(("WARNING: unsupported output format {} requested. "
-                              "Possible options are {}.".format(self.params['Output']['format'],
-                                                                ALLOWEDOUTPUTFORMATS)))
+        if self.params["Output"]["format"] not in ALLOWEDOUTPUTFORMATS:
+            raise ValueError(
+                (
+                    "WARNING: unsupported output format {} requested. "
+                    "Possible options are {}.".format(
+                        self.params["Output"]["format"], ALLOWEDOUTPUTFORMATS
+                    )
+                )
+            )
 
         # Entries for creating the grism input image
-        if not isinstance(self.params['Output']['grism_source_image'], bool):
-            if self.params['Output']['grism_source_image'].lower() == 'none':
-                self.params['Output']['grism_source_image'] = False
+        if not isinstance(self.params["Output"]["grism_source_image"], bool):
+            if self.params["Output"]["grism_source_image"].lower() == "none":
+                self.params["Output"]["grism_source_image"] = False
             else:
-                raise ValueError("WARNING: grism_source_image needs to be True or False")
+                raise ValueError(
+                    "WARNING: grism_source_image needs to be True or False"
+                )
 
         # Location of extended image on output array, pixel x, y values.
         try:
-            self.params['simSignals']['extendedCenter'] = np.fromstring(self.params['simSignals']['extendedCenter'],
-                                                                        dtype=int, sep=", ")
+            self.params["simSignals"]["extendedCenter"] = np.fromstring(
+                self.params["simSignals"]["extendedCenter"], dtype=int, sep=", "
+            )
         except:
-            raise RuntimeError(("WARNING: not able to parse the extendedCenter list {}. "
-                                "It should be a comma-separated list of x and y pixel positions."
-                                .format(self.params['simSignals']['extendedCenter'])))
+            raise RuntimeError(
+                (
+                    "WARNING: not able to parse the extendedCenter list {}. "
+                    "It should be a comma-separated list of x and y pixel positions.".format(
+                        self.params["simSignals"]["extendedCenter"]
+                    )
+                )
+            )
 
         # Check for consistency between the mode and grism_source_image value
-        if ((self.params['Inst']['mode'] in ['wfss', 'ts_grism']) and (not self.params['Output']['grism_source_image'])):
-            raise ValueError('Input yaml file has WFSS or TSO grism mode, but Output:grism_source_image is set to False. Must be True.')
+        if (self.params["Inst"]["mode"] in ["wfss", "ts_grism"]) and (
+            not self.params["Output"]["grism_source_image"]
+        ):
+            raise ValueError(
+                "Input yaml file has WFSS or TSO grism mode, but Output:grism_source_image is set to False. Must be True."
+            )
 
     def checkRunStep(self, filename):
         # check to see if a filename exists in the parameter file.
-        if ((len(filename) == 0) or (filename.lower() == 'none')):
+        if (len(filename) == 0) or (filename.lower() == "none"):
             return False
         else:
             return True
@@ -5312,30 +6930,40 @@ class Catalog_seed():
     def read_pattern_check(self):
         # Check the readout pattern that's entered and set nframe and nskip
         # accordingly
-        self.params['Readout']['readpatt'] = self.params['Readout']['readpatt'].upper()
+        self.params["Readout"]["readpatt"] = self.params["Readout"]["readpatt"].upper()
 
         # Read in readout pattern definition file
         # and make sure the possible readout patterns are in upper case
-        self.readpatterns = ascii.read(self.params['Reffiles']['readpattdefs'])
-        self.readpatterns['name'] = [s.upper() for s in self.readpatterns['name']]
+        self.readpatterns = ascii.read(self.params["Reffiles"]["readpattdefs"])
+        self.readpatterns["name"] = [s.upper() for s in self.readpatterns["name"]]
 
         # If the requested readout pattern is in the table of options,
         # then adopt the appropriate nframe and nskip
-        if self.params['Readout']['readpatt'] in self.readpatterns['name']:
-            mtch = self.params['Readout']['readpatt'] == self.readpatterns['name']
-            self.params['Readout']['nframe'] = self.readpatterns['nframe'][mtch].data[0]
-            self.params['Readout']['nskip'] = self.readpatterns['nskip'][mtch].data[0]
-            self.logger.info(('Requested readout pattern {} is valid. '
-                              'Using the nframe = {} and nskip = {}'
-                              .format(self.params['Readout']['readpatt'],
-                                      self.params['Readout']['nframe'],
-                                      self.params['Readout']['nskip'])))
+        if self.params["Readout"]["readpatt"] in self.readpatterns["name"]:
+            mtch = self.params["Readout"]["readpatt"] == self.readpatterns["name"]
+            self.params["Readout"]["nframe"] = self.readpatterns["nframe"][mtch].data[0]
+            self.params["Readout"]["nskip"] = self.readpatterns["nskip"][mtch].data[0]
+            self.logger.info(
+                (
+                    "Requested readout pattern {} is valid. "
+                    "Using the nframe = {} and nskip = {}".format(
+                        self.params["Readout"]["readpatt"],
+                        self.params["Readout"]["nframe"],
+                        self.params["Readout"]["nskip"],
+                    )
+                )
+            )
         else:
             # If the read pattern is not present in the definition file
             # then quit.
-            raise ValueError(("WARNING: the {} readout pattern is not defined in {}."
-                              .format(self.params['Readout']['readpatt'],
-                                      self.params['Reffiles']['readpattdefs'])))
+            raise ValueError(
+                (
+                    "WARNING: the {} readout pattern is not defined in {}.".format(
+                        self.params["Readout"]["readpatt"],
+                        self.params["Reffiles"]["readpattdefs"],
+                    )
+                )
+            )
 
     def filecheck(self):
         # Make sure the requested input files exist
@@ -5343,15 +6971,17 @@ class Catalog_seed():
         # the directory tree under the directory specified by the MIRAGE_DATA
         # environment variable. If not, assume the input is a full path
         # and check there.
-        rlist = [['Reffiles', 'astrometric']]
-        plist = [['simSignals', 'psfpath']]
-        ilist = [['simSignals', 'pointsource'],
-                 ['simSignals', 'galaxyListFile'],
-                 ['simSignals', 'extended'],
-                 ['simSignals', 'movingTargetList'],
-                 ['simSignals', 'movingTargetSersic'],
-                 ['simSignals', 'movingTargetExtended'],
-                 ['simSignals', 'movingTargetToTrack']]
+        rlist = [["Reffiles", "astrometric"]]
+        plist = [["simSignals", "psfpath"]]
+        ilist = [
+            ["simSignals", "pointsource"],
+            ["simSignals", "galaxyListFile"],
+            ["simSignals", "extended"],
+            ["simSignals", "movingTargetList"],
+            ["simSignals", "movingTargetSersic"],
+            ["simSignals", "movingTargetExtended"],
+            ["simSignals", "movingTargetToTrack"],
+        ]
         # for ref in rlist:
         #    self.ref_check(ref)
         for path in plist:
@@ -5376,12 +7006,15 @@ class Catalog_seed():
         Nothing
         """
         rfile = self.params[rele[0]][rele[1]]
-        if rfile.lower() != 'none':
+        if rfile.lower() != "none":
             c1 = os.path.isfile(rfile)
             if not c1:
-                raise FileNotFoundError(("WARNING: Unable to locate the {}, {} "
-                                         "input file! Not present in {}"
-                                         .format(rele[0], rele[1], rfile)))
+                raise FileNotFoundError(
+                    (
+                        "WARNING: Unable to locate the {}, {} "
+                        "input file! Not present in {}".format(rele[0], rele[1], rfile)
+                    )
+                )
 
     def path_check(self, p):
         """
@@ -5402,26 +7035,40 @@ class Catalog_seed():
         pth = self.params[p[0]][p[1]]
         c1 = os.path.exists(pth)
         if not c1:
-            raise NotADirectoryError(("WARNING: Unable to find the requested path "
-                                      "{}. Not present in directory tree specified by "
-                                      "the {} environment variable."
-                                      .format(pth, self.env_var)))
+            raise NotADirectoryError(
+                (
+                    "WARNING: Unable to find the requested path "
+                    "{}. Not present in directory tree specified by "
+                    "the {} environment variable.".format(pth, self.env_var)
+                )
+            )
 
     def get_surface_brightness_fluxcal(self):
         """Get the conversion value for MJy/sr to ADU/sec from the jwst
         calibration pipeline photom reference file. The value is based
         on the filter and pupil value of the observation.
         """
-        photom_data = fits.getdata(self.params['Reffiles']['photom'])
-        photom_filters = np.array([elem['filter'] for elem in photom_data])
-        photom_pupils = np.array([elem['pupil'] for elem in photom_data])
-        photom_values = np.array([elem['photmjsr'] for elem in photom_data])
+        photom_data = fits.getdata(self.params["Reffiles"]["photom"])
+        photom_filters = np.array([elem["filter"] for elem in photom_data])
+        photom_pupils = np.array([elem["pupil"] for elem in photom_data])
+        photom_values = np.array([elem["photmjsr"] for elem in photom_data])
 
-        good = np.where((photom_filters == self.params['Readout']['filter'].upper()) & (photom_pupils == self.params['Readout']['pupil'].upper()))[0]
+        good = np.where(
+            (photom_filters == self.params["Readout"]["filter"].upper())
+            & (photom_pupils == self.params["Readout"]["pupil"].upper())
+        )[0]
         if len(good) > 1:
-            raise ValueError("More than one matching row in the photom reference file for {} and {}".format(self.params['Readout']['filter'], self.params['Readout']['pupil']))
+            raise ValueError(
+                "More than one matching row in the photom reference file for {} and {}".format(
+                    self.params["Readout"]["filter"], self.params["Readout"]["pupil"]
+                )
+            )
         elif len(good) == 0:
-            raise ValueError("No matching row in the photom reference file for {} and {}".format(self.params['Readout']['filter'], self.params['Readout']['pupil']))
+            raise ValueError(
+                "No matching row in the photom reference file for {} and {}".format(
+                    self.params["Readout"]["filter"], self.params["Readout"]["pupil"]
+                )
+            )
 
         surf_bright_fluxcal = photom_values[good[0]]
         return surf_bright_fluxcal
@@ -5435,29 +7082,46 @@ class Catalog_seed():
         # First, set the default, in case the input yaml does not have the
         # threshold entry
         self.segmentation_threshold = SEGMENTATION_MIN_SIGNAL_RATE
-        segmentation_threshold_units = 'adu/s'
+        segmentation_threshold_units = "adu/s"
 
-        #Now see if there is an entry in the yaml file
+        # Now see if there is an entry in the yaml file
         try:
-            self.segmentation_threshold = self.params['simSignals']['signal_low_limit_for_segmap']
-            segmentation_threshold_units = self.params['simSignals']['signal_low_limit_for_segmap_units'].lower()
+            self.segmentation_threshold = self.params["simSignals"][
+                "signal_low_limit_for_segmap"
+            ]
+            segmentation_threshold_units = self.params["simSignals"][
+                "signal_low_limit_for_segmap_units"
+            ].lower()
         except KeyError:
-            self.logger.info(('simSignals:signal_low_limit_for_segmap and/or simSignals:signal_low_limit_for_segmap_units '
-                              'not present in input yaml file. Using the default value of: {} ADU/sec'.format(self.segmentation_threshold)))
+            self.logger.info(
+                (
+                    "simSignals:signal_low_limit_for_segmap and/or simSignals:signal_low_limit_for_segmap_units "
+                    "not present in input yaml file. Using the default value of: {} ADU/sec".format(
+                        self.segmentation_threshold
+                    )
+                )
+            )
 
         if segmentation_threshold_units not in SUPPORTED_SEGMENTATION_THRESHOLD_UNITS:
-            raise ValueError(('Unsupported unit for the segmentation map lower signal limit: {}.\n'
-                              'Supported units are: {}'.format(segmentation_threshold_units, SUPPORTED_SEGMENTATION_THRESHOLD_UNITS)))
-        if segmentation_threshold_units in ['adu/s', 'adu/sec']:
+            raise ValueError(
+                (
+                    "Unsupported unit for the segmentation map lower signal limit: {}.\n"
+                    "Supported units are: {}".format(
+                        segmentation_threshold_units,
+                        SUPPORTED_SEGMENTATION_THRESHOLD_UNITS,
+                    )
+                )
+            )
+        if segmentation_threshold_units in ["adu/s", "adu/sec"]:
             pass
-        elif segmentation_threshold_units == ['e/s', 'e/sec']:
+        elif segmentation_threshold_units == ["e/s", "e/sec"]:
             self.segmentation_threshold /= self.gain_value
-        elif segmentation_threshold_units == ['mjy/sr', 'mjy/str']:
+        elif segmentation_threshold_units == ["mjy/sr", "mjy/str"]:
             surface_brightness_fluxcal = self.get_surface_brightness_fluxcal()
             self.segmentation_threshold /= surface_brightness_fluxcal
-        elif segmentation_threshold_units in ['erg/cm2/a']:
+        elif segmentation_threshold_units in ["erg/cm2/a"]:
             self.segmentation_threshold /= self.photflam
-        elif segmentation_threshold_units in ['erg/cm2/hz']:
+        elif segmentation_threshold_units in ["erg/cm2/hz"]:
             self.segmentation_threshold /= self.photfnu
 
     def input_check(self, inparam):
@@ -5467,12 +7131,17 @@ class Catalog_seed():
         # This is intended primarily for user-generated inputs like
         # source catalogs
         ifile = self.params[inparam[0]][inparam[1]]
-        if ifile.lower() != 'none':
+        if ifile.lower() != "none":
             c = os.path.isfile(ifile)
             if not c:
-                raise FileNotFoundError(("WARNING: Unable to locate {} Specified "
-                                         "by the {}:{} field in the input yaml file."
-                                         .format(ifile, inparam[0], inparam[1])))
+                raise FileNotFoundError(
+                    (
+                        "WARNING: Unable to locate {} Specified "
+                        "by the {}:{} field in the input yaml file.".format(
+                            ifile, inparam[0], inparam[1]
+                        )
+                    )
+                )
 
     def checkParamVal(self, value, typ, vmin, vmax, default):
         # make sure the input value is a float and between min and max
@@ -5481,11 +7150,15 @@ class Catalog_seed():
         except:
             raise ValueError("WARNING: {} for {} is not a float.".format(value, typ))
 
-        if ((value >= vmin) & (value <= vmax)):
+        if (value >= vmin) & (value <= vmax):
             return value
         else:
-            self.logger.warning(("ERROR: {} for {} is not within reasonable bounds. "
-                                 "Setting to {}".format(value, typ, default)))
+            self.logger.warning(
+                (
+                    "ERROR: {} for {} is not within reasonable bounds. "
+                    "Setting to {}".format(value, typ, default)
+                )
+            )
             return default
 
     def determine_intermediate_aperture(self, siaf_info):
@@ -5511,46 +7184,76 @@ class Catalog_seed():
         """
         self.use_intermediate_aperture = False
         try:
-            if self.params['Readout']['intermediate_aperture'].lower() != 'none':
-                self.logger.info(('Grism time series aperture in use. Using the intermediate aperture {} '
-                                  'to determine source locations on the detector for the undispersed seed image.'
-                                  .format(self.params['Readout']['intermediate_aperture'])))
+            if self.params["Readout"]["intermediate_aperture"].lower() != "none":
+                self.logger.info(
+                    (
+                        "Grism time series aperture in use. Using the intermediate aperture {} "
+                        "to determine source locations on the detector for the undispersed seed image.".format(
+                            self.params["Readout"]["intermediate_aperture"]
+                        )
+                    )
+                )
                 self.use_intermediate_aperture = True
         except KeyError as exc:
             # Protect against running older yaml files where the intermediate_aperture field
             # is not present.
-            if self.params['Readout']['array_name'] in NIRCAM_LW_GRISMTS_APERTURES:
-                self.params['Readout']['intermediate_aperture'] = get_lw_grism_tso_intermeidate_aperture(self.params['Readout']['array_name'])
-                self.logger.info(('Readout:intermediate_aperture field is not present in the input yaml file. Since '
-                                  'this is a LW channel exposure, Mirage can determine the intermediate aperture and '
-                                  'use it going forward.'))
+            if self.params["Readout"]["array_name"] in NIRCAM_LW_GRISMTS_APERTURES:
+                self.params["Readout"][
+                    "intermediate_aperture"
+                ] = get_lw_grism_tso_intermeidate_aperture(
+                    self.params["Readout"]["array_name"]
+                )
+                self.logger.info(
+                    (
+                        "Readout:intermediate_aperture field is not present in the input yaml file. Since "
+                        "this is a LW channel exposure, Mirage can determine the intermediate aperture and "
+                        "use it going forward."
+                    )
+                )
                 self.use_intermediate_aperture = True
 
-            elif self.params['Readout']['array_name'] in NIRCAM_SW_GRISMTS_APERTURES:
-                self.logger.error('Readout:intermediate_aperture field is not present in the input yaml file.')
-                exc.args = ((('Readout:intermediate_aperture field is not present in the input yaml file. '
-                                  'For SW channel simulations that use grism time series apertures, there is no '
-                                  'way to determine the intermediate aperture without this yaml entry. Please add '
-                                  'this field to your yaml file with the appropriate '
-                                  'aperture name, or re-run the yaml_generator with the latest version of Mirage.')), )
+            elif self.params["Readout"]["array_name"] in NIRCAM_SW_GRISMTS_APERTURES:
+                self.logger.error(
+                    "Readout:intermediate_aperture field is not present in the input yaml file."
+                )
+                exc.args = (
+                    (
+                        (
+                            "Readout:intermediate_aperture field is not present in the input yaml file. "
+                            "For SW channel simulations that use grism time series apertures, there is no "
+                            "way to determine the intermediate aperture without this yaml entry. Please add "
+                            "this field to your yaml file with the appropriate "
+                            "aperture name, or re-run the yaml_generator with the latest version of Mirage."
+                        )
+                    ),
+                )
                 raise exc
 
         if self.use_intermediate_aperture:
-            self.intermediate_siaf = siaf_info[self.params['Readout']['intermediate_aperture']]
-            self.intermediate_local_roll, self.intermediate_attitude_matrix, _, \
-            _ = siaf_interface.get_siaf_information(siaf_info,
-                                                    self.params['Readout']['intermediate_aperture'],
-                                                    self.ra, self.dec,
-                                                    self.params['Telescope']['rotation'])
+            self.intermediate_siaf = siaf_info[
+                self.params["Readout"]["intermediate_aperture"]
+            ]
+            (
+                self.intermediate_local_roll,
+                self.intermediate_attitude_matrix,
+                _,
+                _,
+            ) = siaf_interface.get_siaf_information(
+                siaf_info,
+                self.params["Readout"]["intermediate_aperture"],
+                self.ra,
+                self.dec,
+                self.params["Telescope"]["rotation"],
+            )
 
     def read_distortion_reffile(self):
         """Read in the CRDS-format distortion reference file and save
         the coordinate transformation model
         """
         coord_transform = None
-        if self.runStep['astrometric']:
-            with asdf.open(self.params['Reffiles']['astrometric']) as dist_file:
-                coord_transform = dist_file.tree['model']
+        if self.runStep["astrometric"]:
+            with asdf.open(self.params["Reffiles"]["astrometric"]) as dist_file:
+                coord_transform = dist_file.tree["model"]
         # else:
         #    coord_transform = self.simple_coord_transform()
         return coord_transform
@@ -5558,11 +7261,11 @@ class Catalog_seed():
     def saveSingleFits(self, image, name, key_dict=None, image2=None, image2type=None):
         # Save an array into the first extension of a fits file
         h0 = fits.PrimaryHDU()
-        h1 = fits.ImageHDU(image, name='DATA')
+        h1 = fits.ImageHDU(image, name="DATA")
         if image2 is not None:
             h2 = fits.ImageHDU(image2)
             if image2type is not None:
-                h2.header['EXTNAME'] = image2type
+                h2.header["EXTNAME"] = image2type
 
         # if a keyword dictionary is provided, put the
         # keywords into the 0th and 1st extension headers
@@ -5579,16 +7282,25 @@ class Catalog_seed():
 
     def add_options(self, parser=None, usage=None):
         if parser is None:
-            parser = argparse.ArgumentParser(usage=usage, description='Create seed image via catalogs')
-        parser.add_argument("paramfile", help=('File describing the input parameters and instrument '
-                                               'settings to use. (YAML format).'))
-        parser.add_argument("--param_example", help='If used, an example parameter file is output.')
+            parser = argparse.ArgumentParser(
+                usage=usage, description="Create seed image via catalogs"
+            )
+        parser.add_argument(
+            "paramfile",
+            help=(
+                "File describing the input parameters and instrument "
+                "settings to use. (YAML format)."
+            ),
+        )
+        parser.add_argument(
+            "--param_example", help="If used, an example parameter file is output."
+        )
         return parser
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
-    usagestring = 'USAGE: catalog_seed_image.py inputs.yaml'
+    usagestring = "USAGE: catalog_seed_image.py inputs.yaml"
 
     seed = Catalog_seed()
     parser = seed.add_options(usage=usagestring)

@@ -36,8 +36,8 @@ from mirage.logging import logging_functions
 from mirage.utils.utils import ensure_dir_exists
 from mirage.utils.constants import EXPTYPES, LOG_CONFIG_FILENAME, STANDARD_LOGFILE_NAME
 
-classdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../'))
-log_config_file = os.path.join(classdir, 'logging', LOG_CONFIG_FILENAME)
+classdir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
+log_config_file = os.path.join(classdir, "logging", LOG_CONFIG_FILENAME)
 logging_functions.create_logger(log_config_file, STANDARD_LOGFILE_NAME)
 
 
@@ -64,13 +64,15 @@ def path_check():
     crds_path : str
         Full path to the location of the CRDS reference files
     """
-    logger = logging.getLogger('mirage.reference_files.crds_tools.path_check')
-    crds_path = os.environ.get('CRDS_PATH')
+    logger = logging.getLogger("mirage.reference_files.crds_tools.path_check")
+    crds_path = os.environ.get("CRDS_PATH")
     if crds_path is None:
-        reffile_dir = '{}/crds_cache'.format(os.environ.get('HOME'))
+        reffile_dir = "{}/crds_cache".format(os.environ.get("HOME"))
         os.environ["CRDS_PATH"] = reffile_dir
         ensure_dir_exists(reffile_dir)
-        logger.info('CRDS_PATH environment variable not set. Setting to {}'.format(reffile_dir))
+        logger.info(
+            "CRDS_PATH environment variable not set. Setting to {}".format(reffile_dir)
+        )
         return reffile_dir
     else:
         return crds_path
@@ -81,7 +83,7 @@ def server_check():
     controls where Mirage will look for CRDS information. If the env
     variable is not set, set it to the JWST CRDS server.
     """
-    crds_server = os.environ.get('CRDS_SERVER_URL')
+    crds_server = os.environ.get("CRDS_SERVER_URL")
     if crds_server is None:
         os.environ["CRDS_SERVER_URL"] = "https://jwst-crds.stsci.edu"
 
@@ -103,45 +105,45 @@ def dict_from_yaml(yaml_dict):
         via getreferences().
     """
     crds_dict = {}
-    instrument = yaml_dict['Inst']['instrument'].upper()
-    crds_dict['INSTRUME'] = instrument
-    crds_dict['READPATT'] = yaml_dict['Readout']['readpatt'].upper()
+    instrument = yaml_dict["Inst"]["instrument"].upper()
+    crds_dict["INSTRUME"] = instrument
+    crds_dict["READPATT"] = yaml_dict["Readout"]["readpatt"].upper()
 
     # Currently, all reference files that use SUBARRAY as a selection
     # criteria contain SUBARRAY = 'GENERIC', meaning that SUBARRAY
     # actually isn't important. So let's just set it to FULL here.
-    crds_dict['SUBARRAY'] = 'FULL'
+    crds_dict["SUBARRAY"] = "FULL"
 
     # Use the current date and time in order to get the most recent
     # reference file
-    crds_dict['DATE-OBS'] = datetime.date.today().isoformat()
+    crds_dict["DATE-OBS"] = datetime.date.today().isoformat()
     current_date = datetime.datetime.now()
-    crds_dict['TIME-OBS'] = current_date.time().isoformat()
+    crds_dict["TIME-OBS"] = current_date.time().isoformat()
 
-    array_name = yaml_dict['Readout']['array_name']
-    crds_dict['DETECTOR'] = array_name.split('_')[0].upper()
-    if '5' in crds_dict['DETECTOR']:
-        crds_dict['DETECTOR'] = crds_dict['DETECTOR'].replace('5', 'LONG')
+    array_name = yaml_dict["Readout"]["array_name"]
+    crds_dict["DETECTOR"] = array_name.split("_")[0].upper()
+    if "5" in crds_dict["DETECTOR"]:
+        crds_dict["DETECTOR"] = crds_dict["DETECTOR"].replace("5", "LONG")
 
-    if 'FGS' in crds_dict['DETECTOR']:
-        crds_dict['DETECTOR'] = 'GUIDER{}'.format(crds_dict['DETECTOR'][-1])
+    if "FGS" in crds_dict["DETECTOR"]:
+        crds_dict["DETECTOR"] = "GUIDER{}".format(crds_dict["DETECTOR"][-1])
 
-    if instrument == 'NIRCAM':
-        if crds_dict['DETECTOR'] in ['NRCALONG', 'NRCBLONG']:
-            crds_dict['CHANNEL'] = 'LONG'
+    if instrument == "NIRCAM":
+        if crds_dict["DETECTOR"] in ["NRCALONG", "NRCBLONG"]:
+            crds_dict["CHANNEL"] = "LONG"
         else:
-            crds_dict['CHANNEL'] = 'SHORT'
+            crds_dict["CHANNEL"] = "SHORT"
 
     # For the purposes of choosing reference files, the exposure type should
     # always be set to imaging, since it is used to locate sources in the
     # seed image, prior to any dispersion.
-    crds_dict['EXP_TYPE'] = EXPTYPES[instrument.lower()]["imaging"]
+    crds_dict["EXP_TYPE"] = EXPTYPES[instrument.lower()]["imaging"]
 
     # This assumes that filter and pupil names match up with reality,
     # as opposed to the more user-friendly scheme of allowing any
     # filter to be in the filter field.
-    crds_dict['FILTER'] = yaml_dict['Readout']['filter']
-    crds_dict['PUPIL'] = yaml_dict['Readout']['pupil']
+    crds_dict["FILTER"] = yaml_dict["Readout"]["filter"]
+    crds_dict["PUPIL"] = yaml_dict["Readout"]["pupil"]
     return crds_dict
 
 
@@ -176,28 +178,48 @@ def get_reffiles(parameter_dict, reffile_types, download=True):
         try:
             reffile_mapping = crds.getreferences(parameter_dict, reftypes=reffile_types)
         except CrdsLookupError as e:
-            raise ValueError("ERROR: CRDSLookupError when trying to find reference files for parameters: {}".format(parameter_dict))
+            raise ValueError(
+                "ERROR: CRDSLookupError when trying to find reference files for parameters: {}".format(
+                    parameter_dict
+                )
+            )
 
         # Check for missing files
         for key, value in reffile_mapping.items():
             if "NOT FOUND" in value:
-                raise ValueError("ERROR: No {} reference file found when using parameter dictionary: {}".format(key, parameter_dict))
+                raise ValueError(
+                    "ERROR: No {} reference file found when using parameter dictionary: {}".format(
+                        key, parameter_dict
+                    )
+                )
     else:
         # If the files will not be downloaded, still return the same local
         # paths that are returned when the files are downloaded. Note that
         # this follows the directory structure currently assumed by CRDS.
-        crds_path = os.environ.get('CRDS_PATH')
+        crds_path = os.environ.get("CRDS_PATH")
         try:
-            reffile_mapping = crds.getrecommendations(parameter_dict, reftypes=reffile_types)
+            reffile_mapping = crds.getrecommendations(
+                parameter_dict, reftypes=reffile_types
+            )
         except CrdsLookupError as e:
-            raise ValueError("ERROR: CRDSLookupError when trying to find reference files for parameters: {}".format(parameter_dict))
+            raise ValueError(
+                "ERROR: CRDSLookupError when trying to find reference files for parameters: {}".format(
+                    parameter_dict
+                )
+            )
         for key, value in reffile_mapping.items():
 
             # Check for NOT FOUND must be done here because the following
             # line will raise an exception if NOT FOUND is present
             if "NOT FOUND" in value:
-                raise ValueError("ERROR: No {} reference file found when using parameter dictionary: {}".format(key, parameter_dict))
-            instrument = value.split('_')[1]
-            reffile_mapping[key] = os.path.join(crds_path, 'references/jwst', instrument, value)
+                raise ValueError(
+                    "ERROR: No {} reference file found when using parameter dictionary: {}".format(
+                        key, parameter_dict
+                    )
+                )
+            instrument = value.split("_")[1]
+            reffile_mapping[key] = os.path.join(
+                crds_path, "references/jwst", instrument, value
+            )
 
     return reffile_mapping

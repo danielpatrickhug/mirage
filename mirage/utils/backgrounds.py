@@ -11,7 +11,12 @@ import os
 from jwst_backgrounds import jbt
 
 from mirage.logging import logging_functions
-from mirage.utils.constants import PRIMARY_MIRROR_AREA, PLANCK, LOG_CONFIG_FILENAME, STANDARD_LOGFILE_NAME
+from mirage.utils.constants import (
+    PRIMARY_MIRROR_AREA,
+    PLANCK,
+    LOG_CONFIG_FILENAME,
+    STANDARD_LOGFILE_NAME,
+)
 from mirage.utils.file_io import read_filter_throughput
 from mirage.utils.flux_cal import fluxcal_info
 
@@ -22,13 +27,22 @@ MEDIUM = 0.5
 HIGH = 0.9
 
 
-classdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../'))
-log_config_file = os.path.join(classdir, 'logging', LOG_CONFIG_FILENAME)
+classdir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
+log_config_file = os.path.join(classdir, "logging", LOG_CONFIG_FILENAME)
 logging_functions.create_logger(log_config_file, STANDARD_LOGFILE_NAME)
 
 
-def calculate_background(ra, dec, filter_file, use_dateobs, gain_value,
-                         siaf_instance, back_wave=None, back_sig=None, level='medium'):
+def calculate_background(
+    ra,
+    dec,
+    filter_file,
+    use_dateobs,
+    gain_value,
+    siaf_instance,
+    back_wave=None,
+    back_sig=None,
+    level="medium",
+):
     """Use the JWST background calculator to come up with an appropriate background
     level for the observation.
 
@@ -87,8 +101,17 @@ def calculate_background(ra, dec, filter_file, use_dateobs, gain_value,
         # Combine
         filt_bkgd = bkgd_interp * filt_thru
 
-        pixelarea = siaf_instance.XSciScale * u.arcsec * siaf_instance.YSciScale * u.arcsec
-        photon_total = PRIMARY_MIRROR_AREA * (filt_bkgd * u.MJy / u.sr) * (1. / PLANCK) * 1.e-20 * pixelarea.to(u.sr) / (filt_wav * u.micron)
+        pixelarea = (
+            siaf_instance.XSciScale * u.arcsec * siaf_instance.YSciScale * u.arcsec
+        )
+        photon_total = (
+            PRIMARY_MIRROR_AREA
+            * (filt_bkgd * u.MJy / u.sr)
+            * (1.0 / PLANCK)
+            * 1.0e-20
+            * pixelarea.to(u.sr)
+            / (filt_wav * u.micron)
+        )
         bval = np.trapz(photon_total, x=filt_wav)
         bval = bval.value
 
@@ -99,7 +122,9 @@ def calculate_background(ra, dec, filter_file, use_dateobs, gain_value,
         # info, convolve the background curve with the filter
         # throughput curve, and then integrate. THEN, we can
         # calculate the low/medium/high values.
-        bval = low_medium_high_background_value(ra, dec, level, filt_wav, filt_thru, siaf_instance)
+        bval = low_medium_high_background_value(
+            ra, dec, level, filt_wav, filt_thru, siaf_instance
+        )
 
     # Convert the background signal from e-/sec/pixel to ADU/sec/pixel
     bval /= gain_value
@@ -132,20 +157,24 @@ def day_of_year_background_spectrum(ra, dec, observation_date):
         1D array containing background values in MJy/str
     """
     # Generate background spectra for all days
-    background = jbt.background(ra, dec, 4.)
+    background = jbt.background(ra, dec, 4.0)
 
     # Confirm that the target is observable of the requested day of year
-    obsdate = datetime.datetime.strptime(observation_date, '%Y-%m-%d')
+    obsdate = datetime.datetime.strptime(observation_date, "%Y-%m-%d")
     obs_dayofyear = obsdate.timetuple().tm_yday
-    if obs_dayofyear not in background.bkg_data['calendar']:
-        raise ValueError(("ERROR: The requested RA, Dec is not observable on {}. Either "
-                          "specify a different day, or set simSignals:use_dateobs_for_background "
-                          "to False.".format(observation_date)))
+    if obs_dayofyear not in background.bkg_data["calendar"]:
+        raise ValueError(
+            (
+                "ERROR: The requested RA, Dec is not observable on {}. Either "
+                "specify a different day, or set simSignals:use_dateobs_for_background "
+                "to False.".format(observation_date)
+            )
+        )
 
     # Extraxct the spectrum for the requested day
-    match = obs_dayofyear == background.bkg_data['calendar']
-    background_waves = background.bkg_data['wave_array']
-    background_signals = background.bkg_data['total_bg'][match, :][0]
+    match = obs_dayofyear == background.bkg_data["calendar"]
+    background_waves = background.bkg_data["wave_array"]
+    background_signals = background.bkg_data["total_bg"][match, :][0]
 
     return background_waves, background_signals
 
@@ -216,24 +245,30 @@ def low_med_high_background_spectrum(param_dict, detector, module):
 
     """
     # Generate background spectra for all days
-    background = jbt.background(param_dict['Telescope']['ra'], param_dict['Telescope']['dec'], 4.)
+    background = jbt.background(
+        param_dict["Telescope"]["ra"], param_dict["Telescope"]["dec"], 4.0
+    )
 
     # Get basic flux calibration information
-    vegazp, photflam, photfnu, pivot_wavelength = fluxcal_info(param_dict['Reffiles']['flux_cal'],
-                                                               param_dict['Inst']['instrument'],
-                                                               param_dict['Readout']['filter'],
-                                                               param_dict['Readout']['pupil'], detector, module)
+    vegazp, photflam, photfnu, pivot_wavelength = fluxcal_info(
+        param_dict["Reffiles"]["flux_cal"],
+        param_dict["Inst"]["instrument"],
+        param_dict["Readout"]["filter"],
+        param_dict["Readout"]["pupil"],
+        detector,
+        module,
+    )
 
     # Extract the spectrum value across all days at the pivot wavelength
-    wave_diff = np.abs(background.bkg_data['wave_array'] - pivot_wavelength)
+    wave_diff = np.abs(background.bkg_data["wave_array"] - pivot_wavelength)
     bkgd_wave = np.where(wave_diff == np.min(wave_diff))[0][0]
-    bkgd_at_pivot = background.bkg_data['total_bg'][:, bkgd_wave]
+    bkgd_at_pivot = background.bkg_data["total_bg"][:, bkgd_wave]
 
     # Now sort and determine the low/medium/high levels
     low, medium, high = find_low_med_high(bkgd_at_pivot)
 
     # Find the value based on the level in the yaml file
-    background_level = param_dict['simSignals']['bkgdrate'].lower()
+    background_level = param_dict["simSignals"]["bkgdrate"].lower()
     if background_level == "low":
         level_value = low
     elif background_level == "medium":
@@ -241,19 +276,26 @@ def low_med_high_background_spectrum(param_dict, detector, module):
     elif background_level == "high":
         level_value = high
     else:
-        raise ValueError(("ERROR: Unrecognized background value: {}. Must be low, mediumn, or high"
-                          .format(param_dict['simSignals']['bkgdrate'])))
+        raise ValueError(
+            (
+                "ERROR: Unrecognized background value: {}. Must be low, mediumn, or high".format(
+                    param_dict["simSignals"]["bkgdrate"]
+                )
+            )
+        )
 
     # Find the day with the background at the pivot wavelength that
     # is closest to the value associated with the requested level
     diff = np.abs(bkgd_at_pivot - level_value)
     mindiff = np.where(diff == np.min(diff))[0][0]
-    background_spec = background.bkg_data['total_bg'][mindiff, :]
+    background_spec = background.bkg_data["total_bg"][mindiff, :]
 
-    return background.bkg_data['wave_array'], background_spec
+    return background.bkg_data["wave_array"], background_spec
 
 
-def low_medium_high_background_value(ra, dec, background_level, filter_waves, filter_throughput, siaf_info):
+def low_medium_high_background_value(
+    ra, dec, background_level, filter_waves, filter_throughput, siaf_info
+):
     """Calculate the integrated background flux density for a given filter,
     using the filter's throughput curve and the user-input background level
     (e.g. "medium")
@@ -287,11 +329,11 @@ def low_medium_high_background_value(ra, dec, background_level, filter_waves, fi
         over the filter bandpass. Background units are e-/sec/pixel.
     """
     # Get background information
-    bg = jbt.background(ra, dec, 4.)
-    back_wave = bg.bkg_data['wave_array']
-    bsigs = np.zeros(len(bg.bkg_data['total_bg'][:, 0]))
-    for i in range(len(bg.bkg_data['total_bg'][:, 0])):
-        back_sig = bg.bkg_data['total_bg'][i, :]
+    bg = jbt.background(ra, dec, 4.0)
+    back_wave = bg.bkg_data["wave_array"]
+    bsigs = np.zeros(len(bg.bkg_data["total_bg"][:, 0]))
+    for i in range(len(bg.bkg_data["total_bg"][:, 0])):
+        back_sig = bg.bkg_data["total_bg"][i, :]
 
         # Interpolate background to match filter wavelength grid
         bkgd_interp = np.interp(filter_waves, back_wave, back_sig)
@@ -301,7 +343,14 @@ def low_medium_high_background_value(ra, dec, background_level, filter_waves, fi
 
         # Convert from MJy/sr to e-/sec/pixel
         pixelarea = siaf_info.XSciScale * u.arcsec * siaf_info.YSciScale * u.arcsec
-        photon_total = PRIMARY_MIRROR_AREA * (filt_bkgd * u.MJy / u.sr) * (1. / PLANCK) * 1.e-20 * pixelarea.to(u.sr) / (filter_waves * u.micron)
+        photon_total = (
+            PRIMARY_MIRROR_AREA
+            * (filt_bkgd * u.MJy / u.sr)
+            * (1.0 / PLANCK)
+            * 1.0e-20
+            * pixelarea.to(u.sr)
+            / (filter_waves * u.micron)
+        )
         bsigs[i] = np.trapz(photon_total.value, x=filter_waves)
 
     # Now sort and determine the low/medium/high levels
@@ -316,8 +365,13 @@ def low_medium_high_background_value(ra, dec, background_level, filter_waves, fi
     elif background_level == "high":
         value = high
     else:
-        raise ValueError(("ERROR: Unrecognized background value: {}. Must be low, mediumn, or high"
-                          .format(background_level)))
+        raise ValueError(
+            (
+                "ERROR: Unrecognized background value: {}. Must be low, mediumn, or high".format(
+                    background_level
+                )
+            )
+        )
     return value
 
 
@@ -347,25 +401,45 @@ def get_1d_background_spectrum(parameters, detector, module):
     fluxes : numpy.ndarray
         1D array of flux density values
     """
-    logger = logging.getLogger('mirage.utils.backgrounds.nircam_background_spectrum')
+    logger = logging.getLogger("mirage.utils.backgrounds.nircam_background_spectrum")
 
-    if parameters['simSignals']['use_dateobs_for_background']:
-        logger.info("Generating background spectrum for observation date: {}"
-                     .format(parameters['Output']['date_obs']))
-        waves, fluxes = day_of_year_background_spectrum(parameters['Telescope']['ra'],
-                                                        parameters['Telescope']['dec'],
-                                                        parameters['Output']['date_obs'])
+    if parameters["simSignals"]["use_dateobs_for_background"]:
+        logger.info(
+            "Generating background spectrum for observation date: {}".format(
+                parameters["Output"]["date_obs"]
+            )
+        )
+        waves, fluxes = day_of_year_background_spectrum(
+            parameters["Telescope"]["ra"],
+            parameters["Telescope"]["dec"],
+            parameters["Output"]["date_obs"],
+        )
     else:
-        if isinstance(parameters['simSignals']['bkgdrate'], str):
-            if parameters['simSignals']['bkgdrate'].lower() in ['low', 'medium', 'high']:
-                logger.info("Generating background spectrum based on requested level of: {}"
-                            .format(parameters['simSignals']['bkgdrate']))
-                waves, fluxes = low_med_high_background_spectrum(parameters, detector, module)
+        if isinstance(parameters["simSignals"]["bkgdrate"], str):
+            if parameters["simSignals"]["bkgdrate"].lower() in [
+                "low",
+                "medium",
+                "high",
+            ]:
+                logger.info(
+                    "Generating background spectrum based on requested level of: {}".format(
+                        parameters["simSignals"]["bkgdrate"]
+                    )
+                )
+                waves, fluxes = low_med_high_background_spectrum(
+                    parameters, detector, module
+                )
             else:
-                raise ValueError("ERROR: Unrecognized background rate. Must be one of 'low', 'medium', 'high'")
+                raise ValueError(
+                    "ERROR: Unrecognized background rate. Must be one of 'low', 'medium', 'high'"
+                )
         else:
-            raise ValueError(("ERROR: WFSS background rates must be one of 'low', 'medium', 'high', "
-                              "or use_dateobs_for_background must be True "))
+            raise ValueError(
+                (
+                    "ERROR: WFSS background rates must be one of 'low', 'medium', 'high', "
+                    "or use_dateobs_for_background must be True "
+                )
+            )
     return waves, fluxes
 
 
@@ -394,23 +468,30 @@ def niriss_background_scaling(param_dict, detector, module):
         WFSS background images.
     """
     # Generate background spectra for all days
-    background = jbt.background(param_dict['Telescope']['ra'], param_dict['Telescope']['dec'], 4.)
+    background = jbt.background(
+        param_dict["Telescope"]["ra"], param_dict["Telescope"]["dec"], 4.0
+    )
 
     # Get basic flux calibration information
-    vegazp, photflam, photfnu, pivot_wavelength = fluxcal_info(param_dict['Reffiles']['flux_cal'], 'niriss',
-                                                               param_dict['Readout']['filter'],
-                                                               param_dict['Readout']['pupil'], detector, module)
+    vegazp, photflam, photfnu, pivot_wavelength = fluxcal_info(
+        param_dict["Reffiles"]["flux_cal"],
+        "niriss",
+        param_dict["Readout"]["filter"],
+        param_dict["Readout"]["pupil"],
+        detector,
+        module,
+    )
 
     # Extract the spectrum value across all days at the pivot wavelength
-    wave_diff = np.abs(background.bkg_data['wave_array'] - pivot_wavelength)
+    wave_diff = np.abs(background.bkg_data["wave_array"] - pivot_wavelength)
     bkgd_wave = np.where(wave_diff == np.min(wave_diff))[0][0]
-    bkgd_at_pivot = background.bkg_data['total_bg'][:, bkgd_wave]
+    bkgd_at_pivot = background.bkg_data["total_bg"][:, bkgd_wave]
 
     # Now sort and determine the low/medium/high levels
     low, medium, high = find_low_med_high(bkgd_at_pivot)
 
     # Find the value based on the level in the yaml file
-    background_level = param_dict['simSignals']['bkgdrate'].lower()
+    background_level = param_dict["simSignals"]["bkgdrate"].lower()
     if background_level == "low":
         level_value = low
     elif background_level == "medium":
@@ -418,6 +499,11 @@ def niriss_background_scaling(param_dict, detector, module):
     elif background_level == "high":
         level_value = high
     else:
-        raise ValueError(("ERROR: Unrecognized background value: {}. Must be low, medium, or high"
-                          .format(params_dict['simSignals']['bkgdrate'])))
+        raise ValueError(
+            (
+                "ERROR: Unrecognized background value: {}. Must be low, medium, or high".format(
+                    params_dict["simSignals"]["bkgdrate"]
+                )
+            )
+        )
     return level_value

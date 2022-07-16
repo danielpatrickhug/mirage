@@ -20,13 +20,13 @@ from scipy.interpolate import interp1d
 from scipy.ndimage.interpolation import rotate
 from scipy.interpolate import interp2d, RectBivariateSpline
 
-warnings.simplefilter('ignore')
+warnings.simplefilter("ignore")
 
 # Set the MIRAGE_DATA environment variable
-if os.environ.get('MIRAGE_DATA') is None:
+if os.environ.get("MIRAGE_DATA") is None:
     PSF_DIR = None
 else:
-    PSF_DIR = os.path.join(os.environ['MIRAGE_DATA'], 'niriss/soss_psfs/')
+    PSF_DIR = os.path.join(os.environ["MIRAGE_DATA"], "niriss/soss_psfs/")
 
 
 def calculate_psf_tilts():
@@ -38,10 +38,10 @@ def calculate_psf_tilts():
     for order in [1, 2, 3]:
 
         # Get the file
-        psf_file = os.path.join(PSF_DIR, 'SOSS_PSF_tilt_order{}.npy'.format(order))
+        psf_file = os.path.join(PSF_DIR, "SOSS_PSF_tilt_order{}.npy".format(order))
 
         # Dimensions
-        subarray = 'SUBSTRIP256'
+        subarray = "SUBSTRIP256"
         X = range(2048)
         Y = range(256)
 
@@ -70,12 +70,12 @@ def calculate_psf_tilts():
 
             # Edge cases
             try:
-                w0 = trace_wave[x-1]
+                w0 = trace_wave[x - 1]
             except IndexError:
                 w0 = 0
 
             try:
-                w1 = trace_wave[x+1]
+                w1 = trace_wave[x + 1]
             except IndexError:
                 w1 = 10
 
@@ -101,7 +101,7 @@ def calculate_psf_tilts():
 
         # Save the file
         np.save(psf_file, np.array(angles))
-        print('Angles saved to', psf_file)
+        print("Angles saved to", psf_file)
 
 
 def nuke_psfs(tilts=True, raw=True, final=True, mprocessing=True):
@@ -110,7 +110,7 @@ def nuke_psfs(tilts=True, raw=True, final=True, mprocessing=True):
     if tilts:
         calculate_psf_tilts()
 
-    for filt in ['CLEAR', 'F277W']:
+    for filt in ["CLEAR", "F277W"]:
 
         # Calculate the raw psfs from WebbPSF
         if raw:
@@ -121,7 +121,14 @@ def nuke_psfs(tilts=True, raw=True, final=True, mprocessing=True):
             SOSS_psf_cube(filt=filt, generate=True, mprocessing=mprocessing)
 
 
-def generate_SOSS_ldcs(wavelengths, ld_profile, params, model_grid='ACES', subarray='SUBSTRIP256', n_bins=100):
+def generate_SOSS_ldcs(
+    wavelengths,
+    ld_profile,
+    params,
+    model_grid="ACES",
+    subarray="SUBSTRIP256",
+    n_bins=100,
+):
     """
     Generate a lookup table of limb darkening coefficients for full
     SOSS wavelength range
@@ -159,17 +166,39 @@ def generate_SOSS_ldcs(wavelengths, ld_profile, params, model_grid='ACES', subar
         from svo_filters import svo
 
         # Break the bandpass up into n_bins pieces
-        bandpass = svo.Filter('NIRISS.GR700XD.1', n_bins=n_bins, verbose=False)
+        bandpass = svo.Filter("NIRISS.GR700XD.1", n_bins=n_bins, verbose=False)
 
         # Calculate the LDCs
         ldcs = lf.LDC(model_grid=model_grid)
-        ldcs.calculate(params[0], params[1], params[2], ld_profile, mu_min=0.08, bandpass=bandpass, verbose=False)
+        ldcs.calculate(
+            params[0],
+            params[1],
+            params[2],
+            ld_profile,
+            mu_min=0.08,
+            bandpass=bandpass,
+            verbose=False,
+        )
 
         # Interpolate the LDCs to the desired wavelengths
         # TODO: Propagate errors
-        coeff_cols = [col for col in ldcs.results.colnames if col.startswith('c') and len(col) == 2]
-        coeff_errs = [err for err in ldcs.results.colnames if err.startswith('e') and len(err) == 2]
-        coeffs = [[np.interp(wav, list(ldcs.results['wave_eff']), list(ldcs.results[c])) for c in coeff_cols] for wav in wavelengths]
+        coeff_cols = [
+            col
+            for col in ldcs.results.colnames
+            if col.startswith("c") and len(col) == 2
+        ]
+        coeff_errs = [
+            err
+            for err in ldcs.results.colnames
+            if err.startswith("e") and len(err) == 2
+        ]
+        coeffs = [
+            [
+                np.interp(wav, list(ldcs.results["wave_eff"]), list(ldcs.results[c]))
+                for c in coeff_cols
+            ]
+            for wav in wavelengths
+        ]
         coeffs = np.array(coeffs)
 
         del ldcs
@@ -177,9 +206,19 @@ def generate_SOSS_ldcs(wavelengths, ld_profile, params, model_grid='ACES', subar
     except Exception as exc:
 
         print(exc)
-        print('There was a problem computing those limb darkening coefficients. Using all zeros.')
+        print(
+            "There was a problem computing those limb darkening coefficients. Using all zeros."
+        )
 
-        n_coeffs = 1 if ld_profile in ['uniform', 'linear'] else 3 if ld_profile == '3-parameter' else 4 if ld_profile == '4-parameter' else 2
+        n_coeffs = (
+            1
+            if ld_profile in ["uniform", "linear"]
+            else 3
+            if ld_profile == "3-parameter"
+            else 4
+            if ld_profile == "4-parameter"
+            else 2
+        )
         coeffs = np.zeros((len(wavelengths), n_coeffs))
 
     return coeffs
@@ -198,35 +237,41 @@ def generate_SOSS_psfs(filt):
         import webbpsf
 
     except ImportError:
-        raise ("Could not import `webbpsf` package. Functionality limited. Generating dummy file.")
+        raise (
+            "Could not import `webbpsf` package. Functionality limited. Generating dummy file."
+        )
 
     try:
 
         # Get the file
-        file = os.path.join(PSF_DIR, 'SOSS_{}_PSF.fits'.format(filt))
+        file = os.path.join(PSF_DIR, "SOSS_{}_PSF.fits".format(filt))
 
         # Get the NIRISS class from webbpsf and set the filter
         ns = webbpsf.NIRISS()
         ns.filter = filt
-        ns.pupil_mask = 'GR700XD'
+        ns.pupil_mask = "GR700XD"
 
         # Get the min and max wavelengths
-        wavelengths = utils.wave_solutions('SUBSTRIP256').flatten()
-        wave_min = np.max([ns.SHORT_WAVELENGTH_MIN * 1E6, np.min(wavelengths[wavelengths > 0])])
-        wave_max = np.min([ns.LONG_WAVELENGTH_MAX * 1E6, np.max(wavelengths[wavelengths > 0])])
+        wavelengths = utils.wave_solutions("SUBSTRIP256").flatten()
+        wave_min = np.max(
+            [ns.SHORT_WAVELENGTH_MIN * 1e6, np.min(wavelengths[wavelengths > 0])]
+        )
+        wave_max = np.min(
+            [ns.LONG_WAVELENGTH_MAX * 1e6, np.max(wavelengths[wavelengths > 0])]
+        )
 
         # webbpsf.calc_datacube can only handle 100 but that's sufficient
-        W = np.linspace(wave_min, wave_max, 100) * 1E-6
+        W = np.linspace(wave_min, wave_max, 100) * 1e-6
 
         # Calculate the psfs
         print("Generating SOSS psfs. This takes about 8 minutes...")
         start = time.time()
         PSF = ns.calc_datacube(W, oversample=1)[0].data
-        print("Finished in", time.time()-start)
+        print("Finished in", time.time() - start)
 
         # Make the HDUList
         psfhdu = fits.PrimaryHDU(data=PSF)
-        wavhdu = fits.ImageHDU(data=W * 1E6, name='WAV')
+        wavhdu = fits.ImageHDU(data=W * 1e6, name="WAV")
         hdulist = fits.HDUList([psfhdu, wavhdu])
 
         # Write the file
@@ -266,7 +311,7 @@ def get_angle(pf, p0=np.array([0, 0]), pi=None):
     return angle
 
 
-def get_SOSS_psf(wavelength, filt='CLEAR', psfs=None, cutoff=0.005, plot=False):
+def get_SOSS_psf(wavelength, filt="CLEAR", psfs=None, cutoff=0.005, plot=False):
     """
     Retrieve the SOSS psf for the given wavelength,
     scale the total flux to 1, and set pixels below
@@ -291,7 +336,7 @@ def get_SOSS_psf(wavelength, filt='CLEAR', psfs=None, cutoff=0.005, plot=False):
     if psfs is None:
 
         # Get the file
-        file = os.path.join(PSF_DIR, 'SOSS_{}_PSF.fits'.format(filt))
+        file = os.path.join(PSF_DIR, "SOSS_{}_PSF.fits".format(filt))
 
         # Load the SOSS psf cube
         cube = fits.getdata(file).swapaxes(-1, -2)
@@ -309,7 +354,7 @@ def get_SOSS_psf(wavelength, filt='CLEAR', psfs=None, cutoff=0.005, plot=False):
 
     # Interpolate and scale psf
     psf = psfs(wavelength)
-    psf *= 1. / np.sum(psf)
+    psf *= 1.0 / np.sum(psf)
 
     # Remove background
     # psf[psf < cutoff] = 0
@@ -343,7 +388,7 @@ def make_frame(psfs):
 
     # Add each psf
     for n, psf in enumerate(psfs):
-        frame[:, n:n + 76] += psf
+        frame[:, n : n + 76] += psf
 
     return frame[:, 38:-38]
 
@@ -427,7 +472,7 @@ def psf_tilts(order):
         The angle from the vertical of the psf in each of the 2048 columns
     """
     # Get the file
-    psf_file = os.path.join(PSF_DIR, 'SOSS_PSF_tilt_order{}.npy'.format(order))
+    psf_file = os.path.join(PSF_DIR, "SOSS_PSF_tilt_order{}.npy".format(order))
 
     if not os.path.exists(psf_file):
         calculate_psf_tilts()
@@ -466,13 +511,21 @@ def put_psf_on_subarray(psf, y, frame_height=256):
     frame = spline.ev(xg, yg)
 
     # Fill resampled points with zeros
-    extrapol = (((xg < -0.5) | (xg >= dim - 0.5)) | ((yg < -0.5) | (yg >= dim - 0.5)))
+    extrapol = ((xg < -0.5) | (xg >= dim - 0.5)) | ((yg < -0.5) | (yg >= dim - 0.5))
     frame[extrapol] = 0
 
     return frame
 
 
-def SOSS_psf_cube(filt='CLEAR', order=1, subarray='SUBSTRIP256', generate=False, mprocessing=True, wave_sol=None, dirname='default'):
+def SOSS_psf_cube(
+    filt="CLEAR",
+    order=1,
+    subarray="SUBSTRIP256",
+    generate=False,
+    mprocessing=True,
+    wave_sol=None,
+    dirname="default",
+):
     """
     Generate/retrieve a data cube of shape (3, 2048, 76, 76) which is a
     76x76 pixel psf for 2048 wavelengths for each trace order. The PSFs
@@ -503,19 +556,21 @@ def SOSS_psf_cube(filt='CLEAR', order=1, subarray='SUBSTRIP256', generate=False,
     """
     # Check if it's a custom wavelength solution
     psf_loc = copy(PSF_DIR)
-    if dirname != 'default':
+    if dirname != "default":
         dirpath = os.path.join(PSF_DIR, dirname)
         if not os.path.exists(dirpath):
-            os.system('mkdir {}'.format(dirpath))
-        psf_loc = psf_loc.replace('soss_psfs', 'soss_psfs/{}'.format(dirname))
+            os.system("mkdir {}".format(dirpath))
+        psf_loc = psf_loc.replace("soss_psfs", "soss_psfs/{}".format(dirname))
 
     if generate:
 
-        print('This takes about 2 minutes.')
+        print("This takes about 2 minutes.")
 
         # Default wavelengths
         if wave_sol is None:
-            wavelengths = np.mean(utils.wave_solutions(subarray), axis=1)[:3 if filt == 'CLEAR' else 1]
+            wavelengths = np.mean(utils.wave_solutions(subarray), axis=1)[
+                : 3 if filt == "CLEAR" else 1
+            ]
 
         # Or user provided
         else:
@@ -527,7 +582,7 @@ def SOSS_psf_cube(filt='CLEAR', order=1, subarray='SUBSTRIP256', generate=False,
         coeffs = locate_trace.trace_polynomial(subarray)
 
         # Get the file
-        psf_file = os.path.join(PSF_DIR, 'SOSS_{}_PSF.fits'.format(filt))
+        psf_file = os.path.join(PSF_DIR, "SOSS_{}_PSF.fits".format(filt))
 
         # Load the SOSS psf cube
         cube = fits.getdata(psf_file).swapaxes(-1, -2)
@@ -544,13 +599,17 @@ def SOSS_psf_cube(filt='CLEAR', order=1, subarray='SUBSTRIP256', generate=False,
             trace_centers = np.polyval(coeffs[n], trace_cols)
 
             # Don't calculate order2 or order 3 for F277W
-            if n > 0 and filt.lower() == 'f277w':
+            if n > 0 and filt.lower() == "f277w":
                 pass
 
             else:
 
                 # Get the psf for each column
-                print('Calculating order {} SOSS psfs for {} filter...'.format(n + 1, filt))
+                print(
+                    "Calculating order {} SOSS psfs for {} filter...".format(
+                        n + 1, filt
+                    )
+                )
                 start = time.time()
                 func = partial(get_SOSS_psf, filt=filt, psfs=psfs)
 
@@ -566,10 +625,12 @@ def SOSS_psf_cube(filt='CLEAR', order=1, subarray='SUBSTRIP256', generate=False,
                         raw_psfs.append(func(wavelength[i]))
                     raw_psfs = np.array(raw_psfs)
 
-                print('Finished in {} seconds.'.format(time.time()-start))
+                print("Finished in {} seconds.".format(time.time() - start))
 
                 # Rotate the psfs
-                print('Rotating order {} SOSS psfs for {} filter...'.format(n + 1, filt))
+                print(
+                    "Rotating order {} SOSS psfs for {} filter...".format(n + 1, filt)
+                )
                 start = time.time()
                 func = partial(rotate, reshape=False)
 
@@ -588,7 +649,7 @@ def SOSS_psf_cube(filt='CLEAR', order=1, subarray='SUBSTRIP256', generate=False,
                         rotated_psfs.append(func(rp, ang))
                     rotated_psfs = np.array(rotated_psfs)
 
-                print('Finished in {} seconds.'.format(time.time()-start))
+                print("Finished in {} seconds.".format(time.time() - start))
 
                 # Scale psfs to 1
                 rotated_psfs = np.abs(rotated_psfs)
@@ -604,7 +665,11 @@ def SOSS_psf_cube(filt='CLEAR', order=1, subarray='SUBSTRIP256', generate=False,
                     centers = trace_centers[idx0:idx1]
 
                     # Interpolate the psfs onto the subarray
-                    print('Interpolating chunk {}/4 for order {} SOSS psfs for {} filter onto subarray...'.format(N + 1, n + 1, filt))
+                    print(
+                        "Interpolating chunk {}/4 for order {} SOSS psfs for {} filter onto subarray...".format(
+                            N + 1, n + 1, filt
+                        )
+                    )
                     start = time.time()
                     func = put_psf_on_subarray
 
@@ -620,25 +685,33 @@ def SOSS_psf_cube(filt='CLEAR', order=1, subarray='SUBSTRIP256', generate=False,
                         for ch, ce in zip(chunk, centers):
                             subarray_psfs.append(func(ch, ce))
 
-                    print('Finished in {} seconds.'.format(time.time()-start))
+                    print("Finished in {} seconds.".format(time.time() - start))
 
                     # Get the filepath
-                    file = os.path.join(psf_loc, 'SOSS_{}_PSF_order{}_{}.npy'.format(filt, n+1, N+1))
+                    file = os.path.join(
+                        psf_loc, "SOSS_{}_PSF_order{}_{}.npy".format(filt, n + 1, N + 1)
+                    )
 
                     # Delete the file if it exists
                     if os.path.isfile(file):
-                        os.system('rm {}'.format(file))
+                        os.system("rm {}".format(file))
 
                     # Write the data
                     np.save(file, np.array(subarray_psfs))
 
-                    print('Data saved to', file)
+                    print("Data saved to", file)
 
     else:
 
         if PSF_DIR is None:
             print("No PSF files detected. Using all ones.")
-            subarr = 256 if subarray == 'SUBSTRIP256' else 96 if subarray == 'SUBSTRIP256' else 2048
+            subarr = (
+                256
+                if subarray == "SUBSTRIP256"
+                else 96
+                if subarray == "SUBSTRIP256"
+                else 2048
+            )
             return np.ones((2048, subarr, 76))
 
         else:
@@ -648,7 +721,9 @@ def SOSS_psf_cube(filt='CLEAR', order=1, subarray='SUBSTRIP256', generate=False,
             # Get the chunked data and concatenate
             full_data = []
             for chunk in [1, 2, 3, 4]:
-                file = os.path.join(psf_loc, 'SOSS_{}_PSF_order{}_{}.npy'.format(filt, order, chunk))
+                file = os.path.join(
+                    psf_loc, "SOSS_{}_PSF_order{}_{}.npy".format(filt, order, chunk)
+                )
                 full_data.append(np.load(file))
 
             return np.concatenate(full_data, axis=0)

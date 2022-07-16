@@ -29,12 +29,12 @@
 # USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
 # DAMAGE.
 #
-#This local copy of set_telescope_pointing has been updated such
-#that a PAV3 roll angle can be accepted as input in the find_wcs
-#function. In the case where no quaternion is found, the input roll
-#angle is used when calculating WCS information.
-#-25 July 2017, Bryan Hilbert
-'''
+# This local copy of set_telescope_pointing has been updated such
+# that a PAV3 roll angle can be accepted as input in the find_wcs
+# function. In the case where no quaternion is found, the input roll
+# angle is used when calculating WCS information.
+# -25 July 2017, Bryan Hilbert
+"""
 This script adds absolute pointing information to the FITS files provided
 to it on the command line (one or more).
 
@@ -62,7 +62,7 @@ PC2_2
 
 It does not currently place the new keywords in any particular location
 in the header other than what is required by the standard.
-'''
+"""
 from __future__ import print_function, division
 
 from collections import namedtuple
@@ -72,10 +72,11 @@ import sys
 import astropy.io.fits as fits
 import numpy as np
 import pysiaf
-#from jwst.lib.engdb_tools import (
+
+# from jwst.lib.engdb_tools import (
 #    ENGDB_BASE_URL,
 #    ENGDB_Service,
-#)
+# )
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -86,12 +87,11 @@ logger.addHandler(handler)
 
 # Define the return from get_pointing
 Pointing_Quaternions = namedtuple(
-    'Pointing_Quaternions',
-    ['q', 'j2fgs_matrix', 'fsmcorr', 'obstime']
+    "Pointing_Quaternions", ["q", "j2fgs_matrix", "fsmcorr", "obstime"]
 )
 
 
-def add_wcs(filename, roll=0.):
+def add_wcs(filename, roll=0.0):
     """
     Given the name of a valid partially populated level 1b JWST file,
     determine the simple WCS parameters from the SIAF keywords in that
@@ -108,22 +108,21 @@ def add_wcs(filename, roll=0.):
         PA_V3 in degrees
 
     """
-    hdulist = fits.open(filename, 'update')
+    hdulist = fits.open(filename, "update")
     pheader = hdulist[0].header
     fheader = hdulist[1].header
-    obsstart = float(pheader['EXPSTART'])
-    obsend = float(pheader['EXPEND'])
+    obsstart = float(pheader["EXPSTART"])
+    obsend = float(pheader["EXPEND"])
     try:
-        v2ref = float(pheader['V2_REF'])
-        v3ref = float(pheader['V3_REF'])
-        v3idlyang = float(pheader['V3I_YANG'])
-        vparity = int(pheader['VPARITY'])
+        v2ref = float(pheader["V2_REF"])
+        v3ref = float(pheader["V3_REF"])
+        v3idlyang = float(pheader["V3I_YANG"])
+        vparity = int(pheader["VPARITY"])
     except:
-        v2ref = float(fheader['V2_REF'])
-        v3ref = float(fheader['V3_REF'])
-        v3idlyang = float(fheader['V3I_YANG'])
-        vparity = int(fheader['VPARITY'])
-
+        v2ref = float(fheader["V2_REF"])
+        v3ref = float(fheader["V3_REF"])
+        v3idlyang = float(fheader["V3I_YANG"])
+        vparity = int(fheader["VPARITY"])
 
     # ##########################################
     # WARNINGWARNINGWARNINGWARNINGWARNINGWARNING
@@ -132,21 +131,21 @@ def add_wcs(filename, roll=0.):
     # In normal operations, if the paramters cannot be found
     # this should fail.
     # However, for prelaunch, we'll dummy out.
-    #try:
+    # try:
     #    q, j2fgs_matrix, fsmcorr, obstime = get_pointing(obsstart, obsend)
-    #except ValueError as exception:
-    #ra = pheader['TARG_RA']
-    #dec = pheader['TARG_DEC']
-    ra = fheader['CRVAL1']
-    dec = fheader['CRVAL2']
-    #roll = 0
+    # except ValueError as exception:
+    # ra = pheader['TARG_RA']
+    # dec = pheader['TARG_DEC']
+    ra = fheader["CRVAL1"]
+    dec = fheader["CRVAL2"]
+    # roll = 0
 
-    #logger.warning(
+    # logger.warning(
     #    'Cannot retrieve telescope pointing.'
     #    '\n{}'
     #    '\nUsing TARG_RA={}, TARG_DEC={} and PA_V3={} '
     #    'to set pointing.'.format(exception, ra, dec, roll)
-    #)
+    # )
 
     local_roll = compute_local_roll(roll, ra, dec, v2ref, v3ref)
     wcsinfo = (ra, dec, local_roll)
@@ -154,11 +153,11 @@ def add_wcs(filename, roll=0.):
 
     # compute pointing of V1 axis
     attitude_matrix = pysiaf.rotations.attitude(v2ref, v3ref, ra, dec, local_roll)
-    v1_ra_deg, v1_dec_deg = pysiaf.rotations.pointing(attitude_matrix, 0., 0.)
+    v1_ra_deg, v1_dec_deg = pysiaf.rotations.pointing(attitude_matrix, 0.0, 0.0)
     v3_pa_deg = roll
 
     pa_aper_deg = local_roll - vparity * v3idlyang
-    #else:
+    # else:
     #    # compute relevant WCS information
     #    logger.info('Successful read of engineering quaternions.')
     #    logger.debug('q={}'.format(q))
@@ -175,77 +174,84 @@ def add_wcs(filename, roll=0.):
     #        '\n\tRA = {} DEC={} PA_V3={}'.format(crval1, crval2, v3_pa_deg)
     #    )
 
-    #fheader['RA_V1'] = v1_ra_deg
-    #fheader['DEC_V1'] = v1_dec_deg
-    #fheader['PA_V3'] = v3_pa_deg
-    #fheader['CRVAL1'] = crval1
-    #fheader['CRVAL2'] = crval2
-    fheader['PC1_1'] = -np.cos(pa_aper_deg * D2R)
-    fheader['PC1_2'] = np.sin(pa_aper_deg * D2R)
-    fheader['PC2_1'] = np.sin(pa_aper_deg * D2R)
-    fheader['PC2_2'] = np.cos(pa_aper_deg * D2R)
-    fheader['RA_REF'] = crval1
-    fheader['DEC_REF'] = crval2
-    fheader['ROLL_REF'] = local_roll
-    fheader['WCSAXES'] = len(fheader['CTYPE*'])
+    # fheader['RA_V1'] = v1_ra_deg
+    # fheader['DEC_V1'] = v1_dec_deg
+    # fheader['PA_V3'] = v3_pa_deg
+    # fheader['CRVAL1'] = crval1
+    # fheader['CRVAL2'] = crval2
+    fheader["PC1_1"] = -np.cos(pa_aper_deg * D2R)
+    fheader["PC1_2"] = np.sin(pa_aper_deg * D2R)
+    fheader["PC2_1"] = np.sin(pa_aper_deg * D2R)
+    fheader["PC2_2"] = np.cos(pa_aper_deg * D2R)
+    fheader["RA_REF"] = crval1
+    fheader["DEC_REF"] = crval2
+    fheader["ROLL_REF"] = local_roll
+    fheader["WCSAXES"] = len(fheader["CTYPE*"])
     hdulist.flush()
     hdulist.close()
-    logger.info('WCS info for {} complete.'.format(filename))
+    logger.info("WCS info for {} complete.".format(filename))
 
 
 def m_v_to_siaf(ya, v3, v2, vidlparity):  # This is a 321 rotation
-    mat = np.array([[np.cos(v3)*np.cos(v2),
-                    np.cos(v3)*np.sin(v2),
-                    np.sin(v3)],
-                   [-np.cos(ya)*np.sin(v2)+np.sin(ya)*np.sin(v3)*np.cos(v2),
-                    np.cos(ya)*np.cos(v2)+np.sin(ya)*np.sin(v3)*np.sin(v2),
-                    -np.sin(ya)*np.cos(v3)],
-                   [-np.sin(ya)*np.sin(v2)-np.cos(ya)*np.sin(v3)*np.cos(v2),
-                    np.sin(ya)*np.cos(v2)-np.cos(ya)*np.sin(v3)*np.sin(v2),
-                    np.cos(ya)*np.cos(v3)]])
-    pmat = np.array([[0., vidlparity, 0.],
-                     [0., 0., 1.],
-                     [1., 0., 0.]])
+    mat = np.array(
+        [
+            [np.cos(v3) * np.cos(v2), np.cos(v3) * np.sin(v2), np.sin(v3)],
+            [
+                -np.cos(ya) * np.sin(v2) + np.sin(ya) * np.sin(v3) * np.cos(v2),
+                np.cos(ya) * np.cos(v2) + np.sin(ya) * np.sin(v3) * np.sin(v2),
+                -np.sin(ya) * np.cos(v3),
+            ],
+            [
+                -np.sin(ya) * np.sin(v2) - np.cos(ya) * np.sin(v3) * np.cos(v2),
+                np.sin(ya) * np.cos(v2) - np.cos(ya) * np.sin(v3) * np.sin(v2),
+                np.cos(ya) * np.cos(v3),
+            ],
+        ]
+    )
+    pmat = np.array([[0.0, vidlparity, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]])
     return np.dot(pmat, mat)
 
 
 def vector_to_ra_dec(v):
-    """Returns tuple of spherical angles from unit direction Vector """
+    """Returns tuple of spherical angles from unit direction Vector"""
     ra = np.arctan2(v[1], v[0])
     dec = np.arcsin(v[2])
-    if ra < 0.:
-        ra += 2. * np.pi
-    return(ra, dec)
+    if ra < 0.0:
+        ra += 2.0 * np.pi
+    return (ra, dec)
 
-R2D = 180./np.pi
-D2R = np.pi/180.
-A2R = D2R/3600.
-R2A = 3600.*R2D
+
+R2D = 180.0 / np.pi
+D2R = np.pi / 180.0
+A2R = D2R / 3600.0
+R2A = 3600.0 * R2D
 
 # Define the FGS1 to SI-FOV DCM,  Transpose of DCM in SE-20 section 5.8.4.2.
 
 m1 = np.array(
-    [[0.9999994955442, 0.0000000000000, 0.0010044457459],
-     [0.0000011174826, 0.9999993811310, -0.0011125359826],
-     [-0.0010044451243, 0.0011125365439, 0.9999988766756]])
-m2 = np.array(
-    [[0, 0, 1],
-     [1, 0, 0],
-     [0, 1, 0]])
+    [
+        [0.9999994955442, 0.0000000000000, 0.0010044457459],
+        [0.0000011174826, 0.9999993811310, -0.0011125359826],
+        [-0.0010044451243, 0.0011125365439, 0.9999988766756],
+    ]
+)
+m2 = np.array([[0, 0, 1], [1, 0, 0], [0, 1, 0]])
 
 m_fgs1_to_sifov = np.dot(m2, m1)
 m_fgs1_to_sifovT = m_fgs1_to_sifov.transpose()
 
 # Define the SI-FOV to V-frame DCM,  From Luis' IOC
 m_sifov_to_v = np.array(
-    [[0.99999742598, 0., 0.00226892608],
-     [0., 1., 0.],
-     [-0.00226892608, 0., 0.99999742598]])
+    [
+        [0.99999742598, 0.0, 0.00226892608],
+        [0.0, 1.0, 0.0],
+        [-0.00226892608, 0.0, 0.99999742598],
+    ]
+)
 
 
-def calc_wcs(v2ref, v3ref, v3idlyang, vidlparity,
-             q, j2fgs_matrix, fsmcorr):
-    '''
+def calc_wcs(v2ref, v3ref, v3idlyang, vidlparity, q, j2fgs_matrix, fsmcorr):
+    """
     v2ref (arcsec), v3ref (arcsec), v3idlyang (deg), vidlparity (+1 or -1),
     are the relevant siaf parameters. The assumed units are shown in
     parentheses.
@@ -268,30 +274,42 @@ def calc_wcs(v2ref, v3ref, v3idlyang, vidlparity,
     The first is of (CRVAL1, CRVAL2, PA_y_axis)
     The second is of (V1ra, V1dec, V3pa)
     All angles are in decimal degrees.
-    '''
+    """
 
     q1, q2, q3, q4 = q
     m_eci2j = np.array(
-        [[1. - 2.*q2*q2 - 2.*q3*q3,
-            2.*(q1*q2 + q3*q4),
-            2.*(q3*q1 - q2*q4)],
-         [2.*(q1*q2 - q3*q4),
-            1. - 2.*q3*q3 - 2.*q1*q1,
-            2.*(q2*q3 + q1*q4)],
-         [2.*(q3*q1 + q2*q4),
-            2.*(q2*q3 - q1*q4),
-            1. - 2.*q1*q1 - 2.*q2*q2]])
+        [
+            [
+                1.0 - 2.0 * q2 * q2 - 2.0 * q3 * q3,
+                2.0 * (q1 * q2 + q3 * q4),
+                2.0 * (q3 * q1 - q2 * q4),
+            ],
+            [
+                2.0 * (q1 * q2 - q3 * q4),
+                1.0 - 2.0 * q3 * q3 - 2.0 * q1 * q1,
+                2.0 * (q2 * q3 + q1 * q4),
+            ],
+            [
+                2.0 * (q3 * q1 + q2 * q4),
+                2.0 * (q2 * q3 - q1 * q4),
+                1.0 - 2.0 * q1 * q1 - 2.0 * q2 * q2,
+            ],
+        ]
+    )
 
     mj2fgs1 = np.array(j2fgs_matrix).reshape((3, 3)).transpose()
 
     m_sifov_fsm_delta = np.array(
-        [[1., fsmcorr[0]/22.01, fsmcorr[1]/21.68],
-         [-fsmcorr[0]/22.01, 1., 0.],
-         [-fsmcorr[1]/21.68, 0., 1.]])
+        [
+            [1.0, fsmcorr[0] / 22.01, fsmcorr[1] / 21.68],
+            [-fsmcorr[0] / 22.01, 1.0, 0.0],
+            [-fsmcorr[1] / 21.68, 0.0, 1.0],
+        ]
+    )
 
-    mpartial = np.dot(m_sifov_to_v,
-                      np.dot(m_sifov_fsm_delta,
-                             np.dot(m_fgs1_to_sifov, mj2fgs1)))
+    mpartial = np.dot(
+        m_sifov_to_v, np.dot(m_sifov_fsm_delta, np.dot(m_fgs1_to_sifov, mj2fgs1))
+    )
 
     m_eci2v = np.dot(mpartial, m_eci2j)
 
@@ -304,40 +322,40 @@ def calc_wcs(v2ref, v3ref, v3idlyang, vidlparity,
     v3_ra, v3_dec = vector_to_ra_dec(m_eci2v[2])
 
     # The V3PA @ V1 is given by
-    y = np.cos(v3_dec) * np.sin(v3_ra-v1_ra)
-    x = np.sin(v3_dec) * np.cos(v1_dec) - \
-        np.cos(v3_dec) * np.sin(v1_dec) * np.cos((v3_ra - v1_ra))
+    y = np.cos(v3_dec) * np.sin(v3_ra - v1_ra)
+    x = np.sin(v3_dec) * np.cos(v1_dec) - np.cos(v3_dec) * np.sin(v1_dec) * np.cos(
+        (v3_ra - v1_ra)
+    )
     V3PA = np.arctan2(y, x)
 
-    m_eci2siaf = np.dot(m_v_to_siaf(v3idlyang * D2R,
-                                    v3ref * A2R,
-                                    v2ref * A2R,
-                                    vidlparity), m_eci2v)
-    siaf_x = 0. * A2R
-    siaf_y = 0. * A2R
+    m_eci2siaf = np.dot(
+        m_v_to_siaf(v3idlyang * D2R, v3ref * A2R, v2ref * A2R, vidlparity), m_eci2v
+    )
+    siaf_x = 0.0 * A2R
+    siaf_y = 0.0 * A2R
     refpos = np.array(
-               [siaf_x,
-                siaf_y,
-                np.sqrt(1.-siaf_x * siaf_x - siaf_y * siaf_y)])
+        [siaf_x, siaf_y, np.sqrt(1.0 - siaf_x * siaf_x - siaf_y * siaf_y)]
+    )
     msky = np.dot(m_eci2siaf.transpose(), refpos)
     vaper_ra, vaper_dec = vector_to_ra_dec(msky)
 
-    vysiaf = np.array([0., 1., 0.])
+    vysiaf = np.array([0.0, 1.0, 0.0])
 
     myeci = np.dot(m_eci2siaf.transpose(), vysiaf)
     # The Y axis of the aperture is given by
     vy_ra, vy_dec = vector_to_ra_dec(myeci)
     # The VyPA @ xref,yref is given by
-    y = np.cos(vy_dec) * np.sin(vy_ra-vaper_ra)
-    x = np.sin(vy_dec) * np.cos(vaper_dec) - \
-        np.cos(vy_dec) * np.sin(vaper_dec) * np.cos((vy_ra - vaper_ra))
+    y = np.cos(vy_dec) * np.sin(vy_ra - vaper_ra)
+    x = np.sin(vy_dec) * np.cos(vaper_dec) - np.cos(vy_dec) * np.sin(
+        vaper_dec
+    ) * np.cos((vy_ra - vaper_ra))
     vypa = np.arctan2(y, x)
-    wcsinfo = (vaper_ra*R2D, vaper_dec*R2D, vypa*R2D)
-    vinfo = (v1_ra*R2D, v1_dec*R2D, V3PA*R2D)
+    wcsinfo = (vaper_ra * R2D, vaper_dec * R2D, vypa * R2D)
+    vinfo = (v1_ra * R2D, v1_dec * R2D, V3PA * R2D)
     return wcsinfo, vinfo
 
 
-def get_pointing(obstart, obsend, result_type='first'):
+def get_pointing(obstart, obsend, result_type="first"):
     """
     Get telescope pointing engineering data.
 
@@ -371,135 +389,137 @@ def get_pointing(obstart, obsend, result_type='first'):
     available.
     """
     logger.info(
-        'Determining pointing between observations times (mjd):'
-        '\n\tobstart = {}'
-        '\n\tobsend = {}'.format(obstart, obsend)
+        "Determining pointing between observations times (mjd):"
+        "\n\tobstart = {}"
+        "\n\tobsend = {}".format(obstart, obsend)
     )
-    logger.info(
-        'Querying engineering DB: {}'.format(ENGDB_BASE_URL)
-    )
+    logger.info("Querying engineering DB: {}".format(ENGDB_BASE_URL))
     try:
         engdb = ENGDB_Service()
     except Exception as exception:
         raise ValueError(
-            'Cannot open engineering DB connection'
-            '\nException: {}'.format(
-                exception
-            )
+            "Cannot open engineering DB connection" "\nException: {}".format(exception)
         )
     params = {
-        'SA_ZATTEST1':  None,
-        'SA_ZATTEST2':  None,
-        'SA_ZATTEST3':  None,
-        'SA_ZATTEST4':  None,
-        'SA_ZRFGS2J11': None,
-        'SA_ZRFGS2J21': None,
-        'SA_ZRFGS2J31': None,
-        'SA_ZRFGS2J12': None,
-        'SA_ZRFGS2J22': None,
-        'SA_ZRFGS2J32': None,
-        'SA_ZRFGS2J13': None,
-        'SA_ZRFGS2J23': None,
-        'SA_ZRFGS2J33': None,
-        'SA_ZADUCMDX':  None,
-        'SA_ZADUCMDY':  None,
+        "SA_ZATTEST1": None,
+        "SA_ZATTEST2": None,
+        "SA_ZATTEST3": None,
+        "SA_ZATTEST4": None,
+        "SA_ZRFGS2J11": None,
+        "SA_ZRFGS2J21": None,
+        "SA_ZRFGS2J31": None,
+        "SA_ZRFGS2J12": None,
+        "SA_ZRFGS2J22": None,
+        "SA_ZRFGS2J32": None,
+        "SA_ZRFGS2J13": None,
+        "SA_ZRFGS2J23": None,
+        "SA_ZRFGS2J33": None,
+        "SA_ZADUCMDX": None,
+        "SA_ZADUCMDY": None,
     }
     for param in params:
         try:
             params[param] = engdb.get_values(
-                param, obstart, obsend, time_format='mjd', include_obstime=True
+                param, obstart, obsend, time_format="mjd", include_obstime=True
             )
         except Exception as exception:
             raise ValueError(
-                'Cannot retrive {} from engineering.'
-                '\nFailure was {}'.format(
-                    param,
-                    exception
-                )
+                "Cannot retrive {} from engineering."
+                "\nFailure was {}".format(param, exception)
             )
 
     # Find the first set of non-zero values
     results = []
-    for idx in range(len(params['SA_ZATTEST1'])):
-        values = [
-            params[param][idx].value
-            for param in params
-        ]
+    for idx in range(len(params["SA_ZATTEST1"])):
+        values = [params[param][idx].value for param in params]
         if any(values):
 
             # The tagged obstime will come from the SA_ZATTEST1 mneunonic
-            obstime = params['SA_ZATTEST1'][idx].obstime
+            obstime = params["SA_ZATTEST1"][idx].obstime
 
             # Fill out the matricies
-            q = np.array([
-                params['SA_ZATTEST1'][idx].value,
-                params['SA_ZATTEST2'][idx].value,
-                params['SA_ZATTEST3'][idx].value,
-                params['SA_ZATTEST4'][idx].value,
-            ])
+            q = np.array(
+                [
+                    params["SA_ZATTEST1"][idx].value,
+                    params["SA_ZATTEST2"][idx].value,
+                    params["SA_ZATTEST3"][idx].value,
+                    params["SA_ZATTEST4"][idx].value,
+                ]
+            )
 
-            j2fgs_matrix = np.array([
-                params['SA_ZRFGS2J11'][idx].value,
-                params['SA_ZRFGS2J21'][idx].value,
-                params['SA_ZRFGS2J31'][idx].value,
-                params['SA_ZRFGS2J12'][idx].value,
-                params['SA_ZRFGS2J22'][idx].value,
-                params['SA_ZRFGS2J32'][idx].value,
-                params['SA_ZRFGS2J13'][idx].value,
-                params['SA_ZRFGS2J23'][idx].value,
-                params['SA_ZRFGS2J33'][idx].value,
-            ])
+            j2fgs_matrix = np.array(
+                [
+                    params["SA_ZRFGS2J11"][idx].value,
+                    params["SA_ZRFGS2J21"][idx].value,
+                    params["SA_ZRFGS2J31"][idx].value,
+                    params["SA_ZRFGS2J12"][idx].value,
+                    params["SA_ZRFGS2J22"][idx].value,
+                    params["SA_ZRFGS2J32"][idx].value,
+                    params["SA_ZRFGS2J13"][idx].value,
+                    params["SA_ZRFGS2J23"][idx].value,
+                    params["SA_ZRFGS2J33"][idx].value,
+                ]
+            )
 
-            fsmcorr = np.array([
-                params['SA_ZADUCMDX'][idx].value,
-                params['SA_ZADUCMDY'][idx].value,
+            fsmcorr = np.array(
+                [
+                    params["SA_ZADUCMDX"][idx].value,
+                    params["SA_ZADUCMDY"][idx].value,
+                ]
+            )
 
-            ])
-
-            results.append(Pointing_Quaternions(
-                q=q,
-                j2fgs_matrix=j2fgs_matrix,
-                fsmcorr=fsmcorr,
-                obstime=obstime
-            ))
+            results.append(
+                Pointing_Quaternions(
+                    q=q, j2fgs_matrix=j2fgs_matrix, fsmcorr=fsmcorr, obstime=obstime
+                )
+            )
 
             # Short circuit if all we're looking for is the first.
-            if result_type == 'first':
+            if result_type == "first":
                 break
 
     if not len(results):
         raise ValueError(
-                'No non-zero quanternion found '
-                'in the DB between MJD {} and {}'.format(obstart, obsend)
-            )
+            "No non-zero quanternion found "
+            "in the DB between MJD {} and {}".format(obstart, obsend)
+        )
 
-    if result_type == 'first':
+    if result_type == "first":
         return results[0]
     else:
         return results
 
 
 def get_pointing_stub(obstart, obsend):
-    '''
+    """
     For the time being this simply returns the same damn values regardless of
     the input time (awaiting the time that these parameters are actually
     in the engineering database)
-    '''
+    """
     # The following values of q correspond to the engineering keyword values:
     # SA_ZATEST1, SA_ZATEST2, SA_ZATEST3, SA_ZATEST4
-    q = np.array([-0.36915286,  0.33763282,  0.05758533,  0.86395264])
+    q = np.array([-0.36915286, 0.33763282, 0.05758533, 0.86395264])
     # The following values of j2fgs_matrix correspond to the engineering
     #  keyword values of:
     # SA_ZRFGS2K11 SA_ZRFGS2K21 SA_ZRFGS2K31
     # SA_ZRFGS2K21 SA_ZRFGS2K22 SA_ZRFGS2K32
     # SA_ZRFGS2K31 SA_ZRFGS2K32 SA_ZRFGS2K33
     j2fgs_matrix = np.array(
-        [-1.00444000e-03,  3.38145836e-03, 9.99993778e-01,
-         9.99999496e-01, -3.90000000e-14, 1.00444575e-03,
-         3.39649146e-06,  9.99994283e-01, -3.38145665e-03])
+        [
+            -1.00444000e-03,
+            3.38145836e-03,
+            9.99993778e-01,
+            9.99999496e-01,
+            -3.90000000e-14,
+            1.00444575e-03,
+            3.39649146e-06,
+            9.99994283e-01,
+            -3.38145665e-03,
+        ]
+    )
     # The following values of fsmcorr correspond to the engineering keywords:
     # SA_ZADUCMDX, SA_ZADUCMDY
-    fsmcorr = np.array([0., 0.])
+    fsmcorr = np.array([0.0, 0.0])
     return q, j2fgs_matrix, fsmcorr
 
 
@@ -528,33 +548,49 @@ def compute_local_roll(pa_v3, ra_ref, dec_ref, v2_ref, v3_ref):
     dec_ref = np.deg2rad(dec_ref)
     pa_v3 = np.deg2rad(pa_v3)
 
-    M = np.array([[np.cos(ra_ref) * np.cos(dec_ref),
-                   -np.sin(ra_ref) * np.cos(pa_v3) + np.cos(ra_ref) * np.sin(dec_ref) * np.sin(pa_v3),
-                   -np.sin(ra_ref) * np.sin(pa_v3) - np.cos(ra_ref) * np.sin(dec_ref) * np.cos(pa_v3)],
-                  [np.sin(ra_ref) * np.cos(dec_ref),
-                   np.cos(ra_ref) * np.cos(pa_v3) + np.sin(ra_ref) * np.sin(dec_ref) * np.sin(pa_v3),
-                   np.cos(ra_ref) * np.sin(pa_v3) - np.sin(ra_ref) * np.sin(dec_ref) * np.cos(pa_v3)],
-                   [np.sin(dec_ref),
-                    -np.cos(dec_ref) * np.sin(pa_v3),
-                    np.cos(dec_ref) * np.cos(pa_v3)]
-                  ])
+    M = np.array(
+        [
+            [
+                np.cos(ra_ref) * np.cos(dec_ref),
+                -np.sin(ra_ref) * np.cos(pa_v3)
+                + np.cos(ra_ref) * np.sin(dec_ref) * np.sin(pa_v3),
+                -np.sin(ra_ref) * np.sin(pa_v3)
+                - np.cos(ra_ref) * np.sin(dec_ref) * np.cos(pa_v3),
+            ],
+            [
+                np.sin(ra_ref) * np.cos(dec_ref),
+                np.cos(ra_ref) * np.cos(pa_v3)
+                + np.sin(ra_ref) * np.sin(dec_ref) * np.sin(pa_v3),
+                np.cos(ra_ref) * np.sin(pa_v3)
+                - np.sin(ra_ref) * np.sin(dec_ref) * np.cos(pa_v3),
+            ],
+            [
+                np.sin(dec_ref),
+                -np.cos(dec_ref) * np.sin(pa_v3),
+                np.cos(dec_ref) * np.cos(pa_v3),
+            ],
+        ]
+    )
 
     return _roll_angle_from_matrix(M, v2, v3)
 
 
 def _roll_angle_from_matrix(matrix, v2, v3):
-    X = -(matrix[2, 0] * np.cos(v2) + matrix[2, 1] * np.sin(v2)) * np.sin(v3) + matrix[2, 2] * np.cos(v3)
-    Y = (matrix[0, 0] *  matrix[1, 2] - matrix[1, 0] * matrix[0, 2]) * np.cos(v2) + \
-      (matrix[0, 1] * matrix[1, 2] - matrix[1, 1] * matrix[0, 2]) * np.sin(v2)
+    X = -(matrix[2, 0] * np.cos(v2) + matrix[2, 1] * np.sin(v2)) * np.sin(v3) + matrix[
+        2, 2
+    ] * np.cos(v3)
+    Y = (matrix[0, 0] * matrix[1, 2] - matrix[1, 0] * matrix[0, 2]) * np.cos(v2) + (
+        matrix[0, 1] * matrix[1, 2] - matrix[1, 1] * matrix[0, 2]
+    ) * np.sin(v2)
     new_roll = np.rad2deg(np.arctan2(Y, X))
     if new_roll < 0:
         new_roll += 360
     return new_roll
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     if len(sys.argv) <= 1:
-        raise ValueError('missing filename argument(s)')
+        raise ValueError("missing filename argument(s)")
     for filename in sys.argv[1:]:
-        logger.info('Setting pointing for {}'.format(filename))
+        logger.info("Setting pointing for {}".format(filename))
         add_wcs(filename)

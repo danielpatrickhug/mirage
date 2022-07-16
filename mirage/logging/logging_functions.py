@@ -29,14 +29,14 @@ def create_logger(filename, output_log_file):
         log_info = yaml.safe_load(fobj)
 
     # Set the filename of the output log
-    log_info['handlers']['file']['filename'] = output_log_file
+    log_info["handlers"]["file"]["filename"] = output_log_file
 
     # Create the logger using the dictionary from the yaml file
     dictConfig(log_info)
-    logger = logging.getLogger('mirage')
+    logger = logging.getLogger("mirage")
 
 
-def create_standard_logfile_name(base_file, log_type='catalog_seed'):
+def create_standard_logfile_name(base_file, log_type="catalog_seed"):
     """Construct the name for the final log file.
 
     Parameters
@@ -62,14 +62,15 @@ def create_standard_logfile_name(base_file, log_type='catalog_seed'):
         Name of the log file, based on base_file and log type
     """
     log_type = log_type.lower()
-    if log_type == 'catalog_seed':
-        log_name = base_file.replace('.yaml', '.log')
-    elif log_type == 'fits_seed':
-        log_name = base_file.replace('.yaml', 'fits_seed_image.log')
-    elif log_type == 'yaml_generator':
-        time_stamp = datetime.datetime.now().strftime('%d-%b-%YT%H:%m:%S:%f')
-        log_name = base_file.replace('.xml', '_{}.log'.format(time_stamp))
+    if log_type == "catalog_seed":
+        log_name = base_file.replace(".yaml", ".log")
+    elif log_type == "fits_seed":
+        log_name = base_file.replace(".yaml", "fits_seed_image.log")
+    elif log_type == "yaml_generator":
+        time_stamp = datetime.datetime.now().strftime("%d-%b-%YT%H:%m:%S:%f")
+        log_name = base_file.replace(".xml", "_{}.log".format(time_stamp))
     return log_name
+
 
 def get_output_dir(yaml_file):
     """Get the output directory name from self.paramfile
@@ -85,7 +86,7 @@ def get_output_dir(yaml_file):
         Output directory specified in self.paramfile
     """
     params = read_yaml(yaml_file)
-    outdir = params['Output']['directory']
+    outdir = params["Output"]["directory"]
     return outdir
 
 
@@ -109,17 +110,19 @@ def log_fail(func):
         try:
             # Run the function
             func(*args, **kwargs)
-            #logging.info('Completed Successfully')
+            # logging.info('Completed Successfully')
 
         except Exception:
             logging.critical(traceback.format_exc())
-            logging.critical('CRASHED')
+            logging.critical("CRASHED")
             raise
 
     return wrapped
 
 
-def move_logfile_to_standard_location(base_file, input_log_file, yaml_outdir=None, log_type='catalog_seed'):
+def move_logfile_to_standard_location(
+    base_file, input_log_file, yaml_outdir=None, log_type="catalog_seed"
+):
     """Copy the log file from the current working directory and standard
     name to a ```mirage_logs``` subdirectory below the simulation data
     output directory. Rename the log to match the input yaml file name
@@ -152,12 +155,14 @@ def move_logfile_to_standard_location(base_file, input_log_file, yaml_outdir=Non
         'yaml_generator': for log files from yaml_generator, apt_reader
     """
     # Construct the log filename
-    final_logfile_name = create_standard_logfile_name(os.path.basename(base_file), log_type=log_type)
+    final_logfile_name = create_standard_logfile_name(
+        os.path.basename(base_file), log_type=log_type
+    )
 
     # Get the directory name in which to place the log file
     if yaml_outdir is None:
         yaml_outdir = get_output_dir(base_file)
-    final_logfile_dir = os.path.join(yaml_outdir, 'mirage_logs')
+    final_logfile_dir = os.path.join(yaml_outdir, "mirage_logs")
     if not os.path.exists(final_logfile_dir):
         os.makedirs(final_logfile_dir)
 
@@ -180,9 +185,8 @@ def read_yaml(filename):
         Nested dictionary of file contents
     """
     try:
-        with open(filename, 'r') as f:
+        with open(filename, "r") as f:
             data = yaml.load(f, Loader=yaml.FullLoader)
     except FileNotFoundError as e:
-            print(e)
+        print(e)
     return data
-

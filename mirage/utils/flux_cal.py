@@ -87,41 +87,49 @@ def fluxcal_info(fluxcal_file, instrument, filter_value, pupil_value, detector, 
 
     # Get the photflambda and photfnu values that go with
     # the filter
-    if instrument.lower() == 'nircam':
+    if instrument.lower() == "nircam":
         # WLP8 and WLM8 have the same throughput, so the zeropoint file
         # contains only the entry for WLP8. If the user gave WLM8, then
         # be sure to look for the corresponding WLP8 entry.
         matching_pupil = pupil_value
-        if matching_pupil == 'WLM8':
-            matching_pupil = 'WLP8'
+        if matching_pupil == "WLM8":
+            matching_pupil = "WLP8"
 
         # For entries that include the grism, substitute CLEAR for the GRISM
-        if matching_pupil in ['GRISMR', 'GRISMC', 'GDHS0', 'GDHS60']:
-            matching_pupil = 'CLEAR'
+        if matching_pupil in ["GRISMR", "GRISMC", "GDHS0", "GDHS60"]:
+            matching_pupil = "CLEAR"
 
-        mtch = ((zps['Detector'] == detector) &
-                (zps['Filter'] == filter_value) &
-                (zps['Pupil'] == matching_pupil) &
-                (zps['Module'] == module))
+        mtch = (
+            (zps["Detector"] == detector)
+            & (zps["Filter"] == filter_value)
+            & (zps["Pupil"] == matching_pupil)
+            & (zps["Module"] == module)
+        )
 
-    elif instrument.lower() in ['niriss', 'fgs']:
+    elif instrument.lower() in ["niriss", "fgs"]:
         matching_filter = filter_value.upper()
-        if filter_value.upper() in ['CLEAR', 'CLEARP', 'GR150R', 'GR150C']:
+        if filter_value.upper() in ["CLEAR", "CLEARP", "GR150R", "GR150C"]:
             matching_filter = pupil_value.upper()
 
-        mtch = ((zps['Detector'] == detector) &
-                (zps['Filter'] == matching_filter) &
-                (zps['Module'] == module))
+        mtch = (
+            (zps["Detector"] == detector)
+            & (zps["Filter"] == matching_filter)
+            & (zps["Module"] == module)
+        )
 
     # Make sure the requested filter/pupil is allowed
     if not any(mtch):
-        raise ValueError(("WARNING: requested filter and pupil values of {} and {} are not in the list of "
-                          "possible options.".format(filter_value, pupil_value)))
+        raise ValueError(
+            (
+                "WARNING: requested filter and pupil values of {} and {} are not in the list of "
+                "possible options.".format(filter_value, pupil_value)
+            )
+        )
 
-    vegazeropoint = zps['VEGAMAG'][mtch][0]
-    photflam = zps['PHOTFLAM'][mtch][0]
-    photfnu = zps['PHOTFNU'][mtch][0]
-    pivot = zps['Pivot_wave'][mtch][0]
+    vegazeropoint = zps["VEGAMAG"][mtch][0]
+    photflam = zps["PHOTFLAM"][mtch][0]
+    photfnu = zps["PHOTFNU"][mtch][0]
+    pivot = zps["Pivot_wave"][mtch][0]
 
     return vegazeropoint, photflam, photfnu, pivot
 
@@ -143,21 +151,21 @@ def mag_col_name_to_filter_pupil(colname):
     pupil_name : str
         Name of pupil (e.g. 'clear')
     """
-    mag_parts = colname.split('_')
+    mag_parts = colname.split("_")
     instrument = mag_parts[0].lower()
     if len(mag_parts) == 4:
-        filt_pup_str = '{}/{}'.format(mag_parts[1], mag_parts[2])
+        filt_pup_str = "{}/{}".format(mag_parts[1], mag_parts[2])
     elif len(mag_parts) == 3:
         filt_pup_str = mag_parts[1]
 
     std_filt_pup_str = standardize_filters(instrument, [filt_pup_str])
-    std_parts = std_filt_pup_str[0].split('/')
+    std_parts = std_filt_pup_str[0].split("/")
     if len(std_parts) == 2:
         filter_name = std_parts[0].lower()
         pupil_name = std_parts[1].lower()
     elif len(std_parts) == 1:
         filter_name = std_parts[0]
-        pupil_name = 'NONE'
+        pupil_name = "NONE"
     return filter_name, pupil_name
 
 
@@ -198,11 +206,21 @@ def sersic_total_signal(effective_radius, sersic_index):
         Total signal associated with the 2D Sersic profile
     """
     b_n = sp.gammaincinv(2 * sersic_index, 0.5)
-    sersic_total = effective_radius**2 * 2 * np.pi * sersic_index * np.exp(b_n)/(b_n**(2 * sersic_index)) * sp.gamma(2 * sersic_index)
+    sersic_total = (
+        effective_radius**2
+        * 2
+        * np.pi
+        * sersic_index
+        * np.exp(b_n)
+        / (b_n ** (2 * sersic_index))
+        * sp.gamma(2 * sersic_index)
+    )
     return sersic_total
 
 
-def sersic_fractional_radius(effective_radius, sersic_index, fraction_of_total, ellipticity):
+def sersic_fractional_radius(
+    effective_radius, sersic_index, fraction_of_total, ellipticity
+):
     """For a 2D Sersic profile, calculate the semi-major and semi-minor axes
     lengths that contain a specified fraction of the total signal.
     See here for more info:
@@ -238,9 +256,17 @@ def sersic_fractional_radius(effective_radius, sersic_index, fraction_of_total, 
         raise ValueError("fraction_of_total must be <= 1")
 
     b_n = sp.gammaincinv(2 * sersic_index, 0.5)
-    x = sp.gammaincinv(2*sersic_index, fraction_of_total)
-    sersic_total = effective_radius**2 * 2 * np.pi * sersic_index * np.exp(b_n)/(b_n**(2 * sersic_index)) * sp.gammainc(2 * sersic_index, x)
-    radius = effective_radius * (x / b_n)**sersic_index
-    semi_major = np.sqrt(radius**2 /  (1. - ellipticity))
-    semi_minor = semi_major * (1. - ellipticity)
+    x = sp.gammaincinv(2 * sersic_index, fraction_of_total)
+    sersic_total = (
+        effective_radius**2
+        * 2
+        * np.pi
+        * sersic_index
+        * np.exp(b_n)
+        / (b_n ** (2 * sersic_index))
+        * sp.gammainc(2 * sersic_index, x)
+    )
+    radius = effective_radius * (x / b_n) ** sersic_index
+    semi_major = np.sqrt(radius**2 / (1.0 - ellipticity))
+    semi_minor = semi_major * (1.0 - ellipticity)
     return radius, semi_major, semi_minor

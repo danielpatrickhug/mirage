@@ -1,0 +1,10 @@
+#!/Users/danielhug/mirage/venv/bin/python3.9
+#-*-python-*-
+
+import sys
+
+from crds.query_affected import QueryAffectedDatasetsScript
+            
+if __name__ == "__main__":
+    sys.exit(QueryAffectedDatasetsScript()())
+

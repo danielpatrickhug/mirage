@@ -28,11 +28,17 @@ import logging
 import os
 
 from mirage.logging import logging_functions
-from mirage.utils.constants import FLAMBDA_CGS_UNITS, FLAMBDA_MKS_UNITS, FNU_CGS_UNITS, FNU_MKS_UNITS, \
-                                   LOG_CONFIG_FILENAME, STANDARD_LOGFILE_NAME
+from mirage.utils.constants import (
+    FLAMBDA_CGS_UNITS,
+    FLAMBDA_MKS_UNITS,
+    FNU_CGS_UNITS,
+    FNU_MKS_UNITS,
+    LOG_CONFIG_FILENAME,
+    STANDARD_LOGFILE_NAME,
+)
 
-classdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../'))
-log_config_file = os.path.join(classdir, 'logging', LOG_CONFIG_FILENAME)
+classdir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
+log_config_file = os.path.join(classdir, "logging", LOG_CONFIG_FILENAME)
 logging_functions.create_logger(log_config_file, STANDARD_LOGFILE_NAME)
 
 
@@ -55,26 +61,26 @@ def open(filename):
         and a wavelength unit
         'fluxes' is an astropy.units Quantity composed of a list of flux values with flux unit
     """
-    logger = logging.getLogger('mirage.catalogs.hdf5_catalog.open')
+    logger = logging.getLogger("mirage.catalogs.hdf5_catalog.open")
     contents = {}
-    with h5py.File(filename, 'r') as file_obj:
+    with h5py.File(filename, "r") as file_obj:
         no_wave_units = False
         no_flux_units = False
         for key in file_obj.keys():
             dataset = file_obj[key]
             try:
-                wave_units_string = dataset.attrs['wavelength_units']
+                wave_units_string = dataset.attrs["wavelength_units"]
             except KeyError:
-                wave_units_string = 'micron'
+                wave_units_string = "micron"
                 no_wave_units = True
             try:
-                flux_units_string = dataset.attrs['flux_units']
+                flux_units_string = dataset.attrs["flux_units"]
             except KeyError:
-                flux_units_string = 'flam_cgs'
+                flux_units_string = "flam_cgs"
                 no_flux_units = True
 
             # Catch common errors
-            if wave_units_string.lower() in ['microns', 'angstroms', 'nanometers']:
+            if wave_units_string.lower() in ["microns", "angstroms", "nanometers"]:
                 wave_units_string = wave_units_string[0:-1]
 
             # Convert the unit strings into astropy.units Unit object
@@ -92,8 +98,11 @@ def open(filename):
                 elif wave_units.is_equivalent(u.Hz):
                     waves = waves.to(u.micron, equivalencies=u.spectral())
                 else:
-                    raise ValueError("Wavelength units of {} in dataset {} are not compatible with microns."
-                                     .format(wave_units, key))
+                    raise ValueError(
+                        "Wavelength units of {} in dataset {} are not compatible with microns.".format(
+                            wave_units, key
+                        )
+                    )
             if flux_units != FLAMBDA_CGS_UNITS:
                 if flux_units.is_equivalent(FLAMBDA_CGS_UNITS):
                     fluxes = fluxes.to(FLAMBDA_CGS_UNITS)
@@ -102,14 +111,23 @@ def open(filename):
                 elif flux_units == u.pct:
                     pass
                 else:
-                    raise ValueError("Flux density units of {} in dataset {} are not compatible with f_lambda."
-                                     .format(flux_units, key))
+                    raise ValueError(
+                        "Flux density units of {} in dataset {} are not compatible with f_lambda.".format(
+                            flux_units, key
+                        )
+                    )
 
-            contents[int(key)] = {'wavelengths': waves, 'fluxes': fluxes}
+            contents[int(key)] = {"wavelengths": waves, "fluxes": fluxes}
     if no_wave_units:
-        logger.info("{}: No wavelength units provided. Assuming MIRCONS.".format(filename))
+        logger.info(
+            "{}: No wavelength units provided. Assuming MIRCONS.".format(filename)
+        )
     if no_flux_units:
-        logger.info("{}: No flux density units provided. Assuming F_lambda in CGS (erg/sec/cm^2/A)".format(filename))
+        logger.info(
+            "{}: No flux density units provided. Assuming F_lambda in CGS (erg/sec/cm^2/A)".format(
+                filename
+            )
+        )
     return contents
 
 
@@ -132,26 +150,26 @@ def open_tso(filename):
         and a time unit
         'fluxes' is an astropy.units Quantity composed of a list of flux values with flux unit
     """
-    logger = logging.getLogger('mirage.catalogs.hdf5_catalog.open_tso')
+    logger = logging.getLogger("mirage.catalogs.hdf5_catalog.open_tso")
     contents = {}
-    with h5py.File(filename, 'r') as file_obj:
+    with h5py.File(filename, "r") as file_obj:
         no_time_units = False
         no_flux_units = False
         for key in file_obj.keys():
             dataset = file_obj[key]
             try:
-                time_units_string = dataset.attrs['time_units']
+                time_units_string = dataset.attrs["time_units"]
             except KeyError:
-                time_units_string = 'second'
+                time_units_string = "second"
                 no_time_units = True
             try:
-                flux_units_string = dataset.attrs['flux_units']
+                flux_units_string = dataset.attrs["flux_units"]
             except KeyError:
-                flux_units_string = 'normalized'
+                flux_units_string = "normalized"
                 no_flux_units = True
 
             # Catch common errors
-            if time_units_string.lower() in ['seconds', 'minutes', 'hours', 'days']:
+            if time_units_string.lower() in ["seconds", "minutes", "hours", "days"]:
                 time_units_string = time_units_string[0:-1]
 
             # Convert the unit strings into astropy.units Unit object
@@ -167,21 +185,31 @@ def open_tso(filename):
                 if time_units.is_equivalent(u.second):
                     times = times.to(u.second)
                 else:
-                    raise ValueError("Time units of {} in dataset {} are not compatible with seconds."
-                                     .format(time_units, key))
+                    raise ValueError(
+                        "Time units of {} in dataset {} are not compatible with seconds.".format(
+                            time_units, key
+                        )
+                    )
             if flux_units != u.pct:
-                raise ValueError("Flux units are assumed to be normalized. But units in dataset {} are {}."
-                                 .format(key, flux_units))
+                raise ValueError(
+                    "Flux units are assumed to be normalized. But units in dataset {} are {}.".format(
+                        key, flux_units
+                    )
+                )
 
-            contents[int(key)] = {'times': times, 'fluxes': fluxes}
+            contents[int(key)] = {"times": times, "fluxes": fluxes}
     if no_time_units:
         logger.info("{}: No time units provided. Assuming SECONDS.".format(filename))
     if no_flux_units:
-        logger.info("{}: No flux density units provided. Assuming light curve is normalized.".format(filename))
+        logger.info(
+            "{}: No flux density units provided. Assuming light curve is normalized.".format(
+                filename
+            )
+        )
     return contents
 
 
-def save(contents, filename, wavelength_unit='', flux_unit=''):
+def save(contents, filename, wavelength_unit="", flux_unit=""):
     """Save a dictionary into an hdf5 file
 
     Paramters
@@ -199,8 +227,8 @@ def save(contents, filename, wavelength_unit='', flux_unit=''):
     """
     with h5py.File(filename, "w") as file_obj:
         for key in contents.keys():
-            flux = contents[key]['fluxes']
-            wavelength = contents[key]['wavelengths']
+            flux = contents[key]["fluxes"]
+            wavelength = contents[key]["wavelengths"]
 
             # If units are astropy.units Units objects, change to strings
             # If wavelengths are not a Quantity, fall back onto wavelength_unit
@@ -218,17 +246,22 @@ def save(contents, filename, wavelength_unit='', flux_unit=''):
                 flux_units = flux_unit
                 flux_values = flux
 
-            dset = file_obj.create_dataset(str(key), data=[wavelength_values, flux_values], dtype='f',
-                                           compression="gzip", compression_opts=9)
+            dset = file_obj.create_dataset(
+                str(key),
+                data=[wavelength_values, flux_values],
+                dtype="f",
+                compression="gzip",
+                compression_opts=9,
+            )
 
             # Set dataset units. Not currently inspected by mirage.
-            if wavelength_units != '':
-                dset.attrs[u'wavelength_units'] = wavelength_units
-            if flux_units != '':
-                dset.attrs[u'flux_units'] = flux_units
+            if wavelength_units != "":
+                dset.attrs["wavelength_units"] = wavelength_units
+            if flux_units != "":
+                dset.attrs["flux_units"] = flux_units
 
 
-def save_tso(contents, filename, time_unit='', flux_unit=''):
+def save_tso(contents, filename, time_unit="", flux_unit=""):
     """Save a dictionary of TSO data into an hdf5 file
 
     Paramters
@@ -256,8 +289,8 @@ def save_tso(contents, filename, time_unit='', flux_unit=''):
     """
     with h5py.File(filename, "w") as file_obj:
         for key in contents.keys():
-            flux = contents[key]['fluxes']
-            time = contents[key]['times']
+            flux = contents[key]["fluxes"]
+            time = contents[key]["times"]
 
             # If units are astropy.units Units objects, change to strings
             # If wavelengths are not a Quantity, fall back onto wavelength_unit
@@ -275,14 +308,19 @@ def save_tso(contents, filename, time_unit='', flux_unit=''):
                 flux_units = flux_unit
                 flux_values = flux
 
-            dset = file_obj.create_dataset(str(key), data=[time_values, flux_values], dtype='f',
-                                           compression="gzip", compression_opts=9)
+            dset = file_obj.create_dataset(
+                str(key),
+                data=[time_values, flux_values],
+                dtype="f",
+                compression="gzip",
+                compression_opts=9,
+            )
 
             # Set dataset units. Not currently inspected by mirage.
-            if time_units != '':
-                dset.attrs[u'time_units'] = time_units
-            if flux_units != '':
-                dset.attrs[u'flux_units'] = flux_units
+            if time_units != "":
+                dset.attrs["time_units"] = time_units
+            if flux_units != "":
+                dset.attrs["flux_units"] = flux_units
 
 
 def string_to_units(unit_string):
@@ -297,16 +335,16 @@ def string_to_units(unit_string):
     -------
     units : astropy.units Quantity
     """
-    logger = logging.getLogger('mirage.catalogs.hdf5_catalog.string_to_units')
-    if unit_string.lower() in ['flam', "flam_cgs"]:
+    logger = logging.getLogger("mirage.catalogs.hdf5_catalog.string_to_units")
+    if unit_string.lower() in ["flam", "flam_cgs"]:
         return FLAMBDA_CGS_UNITS
-    elif unit_string.lower() == 'flam_mks':
+    elif unit_string.lower() == "flam_mks":
         return FLAMBDA_MKS_UNITS
-    elif unit_string.lower() in ['fnu', 'fnu_cgs']:
+    elif unit_string.lower() in ["fnu", "fnu_cgs"]:
         return FNU_CGS_UNITS
-    elif unit_string.lower() == 'fnu_mks':
+    elif unit_string.lower() == "fnu_mks":
         return FNU_MKS_UNITS
-    elif unit_string in ['normalized', 'NORMALIZED', 'Normalized']:
+    elif unit_string in ["normalized", "NORMALIZED", "Normalized"]:
         return u.pct
     else:
         try:
@@ -328,14 +366,14 @@ def units_to_string(unit):
         String representation of the units in quantity
     """
     if unit == FLAMBDA_CGS_UNITS:
-        return 'flam_cgs'
+        return "flam_cgs"
     elif unit == FLAMBDA_MKS_UNITS:
-        return 'flam_mks'
+        return "flam_mks"
     elif unit == FNU_CGS_UNITS:
-        return 'fnu_cgs'
+        return "fnu_cgs"
     elif unit == FNU_MKS_UNITS:
-        return 'fnu_mks'
+        return "fnu_mks"
     elif unit == u.pct:
-        return 'normalized'
+        return "normalized"
     else:
         return unit.to_string()

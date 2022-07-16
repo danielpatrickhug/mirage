@@ -31,12 +31,14 @@ from ..utils import set_telescope_pointing_separated as set_telescope_pointing
 from mirage.utils.constants import LOG_CONFIG_FILENAME, STANDARD_LOGFILE_NAME
 
 
-classdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../'))
-log_config_file = os.path.join(classdir, 'logging', LOG_CONFIG_FILENAME)
+classdir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
+log_config_file = os.path.join(classdir, "logging", LOG_CONFIG_FILENAME)
 logging_functions.create_logger(log_config_file, STANDARD_LOGFILE_NAME)
 
 
-def aperture_ra_dec(siaf_instance, aperture_name, ra, dec, telescope_roll, output_apertures):
+def aperture_ra_dec(
+    siaf_instance, aperture_name, ra, dec, telescope_roll, output_apertures
+):
     """For a given aperture with a known RA, Dec, and telescope roll angle,
     calculate the RA, Dec values at the reference location in a list of
     other apertures.
@@ -67,14 +69,15 @@ def aperture_ra_dec(siaf_instance, aperture_name, ra, dec, telescope_roll, outpu
         Dictionary with output_apertures as keys. Values are (ra, dec)
         tuples
     """
-    local_roll, att_matrix, fullframesize, subarray_boundaries = get_siaf_information(siaf_instance,
-                                                                                      aperture_name,
-                                                                                      ra, dec,
-                                                                                      telescope_roll)
+    local_roll, att_matrix, fullframesize, subarray_boundaries = get_siaf_information(
+        siaf_instance, aperture_name, ra, dec, telescope_roll
+    )
     aperture_pointing = {}
     for aperture in output_apertures:
         siaf_out = siaf_instance[aperture]
-        out_ra, out_dec = pysiaf.rotations.pointing(att_matrix, siaf_out.V2Ref, siaf_out.V3Ref)
+        out_ra, out_dec = pysiaf.rotations.pointing(
+            att_matrix, siaf_out.V2Ref, siaf_out.V3Ref
+        )
         aperture_pointing[aperture] = (out_ra, out_dec)
     return aperture_pointing
 
@@ -118,9 +121,9 @@ def aperture_xy_to_radec(x, y, instrument, aperture, fiducial_ra, fiducial_dec, 
     """
     instrument_siaf = siaf_interface.get_instance(instrument)
     siaf = instrument_siaf[aperture]
-    local_roll, attitude_matrix, ffsize, \
-            subarray_bounds = get_siaf_information(instrument, aperture, fiducial_ra,
-                                                   fiducial_dec, pav3)
+    local_roll, attitude_matrix, ffsize, subarray_bounds = get_siaf_information(
+        instrument, aperture, fiducial_ra, fiducial_dec, pav3
+    )
     loc_v2, loc_v3 = siaf.sci_to_tel(x + 1, y + 1)
     ra, dec = pysiaf.utils.rotations.pointing(attitude_matrix, loc_v2, loc_v3)
     return ra, dec
@@ -143,8 +146,16 @@ def get_instance(instrument):
     return siaf
 
 
-def get_siaf_information(siaf_instance, aperture_name, ra, dec, telescope_roll, v2_arcsec=None,
-                         v3_arcsec=None, verbose=False):
+def get_siaf_information(
+    siaf_instance,
+    aperture_name,
+    ra,
+    dec,
+    telescope_roll,
+    v2_arcsec=None,
+    v3_arcsec=None,
+    verbose=False,
+):
     """Use pysiaf to get aperture information.
 
     Parameters
@@ -190,7 +201,7 @@ def get_siaf_information(siaf_instance, aperture_name, ra, dec, telescope_roll, 
         List of full-frame coordinates corresponding to the minimum and maximum
         values of x and y in the given aperture
     """
-    logger = logging.getLogger('mirage.utils.siaf_interface.get_siaf_information')
+    logger = logging.getLogger("mirage.utils.siaf_interface.get_siaf_information")
 
     # Select the correct aperture
     siaf = siaf_instance[aperture_name]
@@ -200,8 +211,9 @@ def get_siaf_information(siaf_instance, aperture_name, ra, dec, telescope_roll, 
     if v3_arcsec is None:
         v3_arcsec = siaf.V3Ref
 
-    local_roll = set_telescope_pointing.compute_local_roll(telescope_roll,
-                                                           ra, dec, v2_arcsec, v3_arcsec)
+    local_roll = set_telescope_pointing.compute_local_roll(
+        telescope_roll, ra, dec, v2_arcsec, v3_arcsec
+    )
 
     # Create attitude_matrix
     att_matrix = rotations.attitude(v2_arcsec, v3_arcsec, ra, dec, local_roll)
@@ -211,11 +223,15 @@ def get_siaf_information(siaf_instance, aperture_name, ra, dec, telescope_roll, 
 
     # Subarray boundaries in full frame coordinates
     try:
-        xcorner, ycorner = sci_subarray_corners(siaf_instance.instrument, aperture_name, siaf=siaf_instance)
+        xcorner, ycorner = sci_subarray_corners(
+            siaf_instance.instrument, aperture_name, siaf=siaf_instance
+        )
         subarray_boundaries = [xcorner[0], ycorner[0], xcorner[1], ycorner[1]]
     except (RuntimeError, TypeError) as e:  # e.g. NIRSpec NRS_FULL_MSA aperture
         if verbose:
-            logger.info('get_siaf_information raised error:\n{}\nIgnoring it.'.format(e))
+            logger.info(
+                "get_siaf_information raised error:\n{}\nIgnoring it.".format(e)
+            )
         subarray_boundaries = [0, 0, 0, 0]
     return local_roll, att_matrix, fullframesize, subarray_boundaries
 
@@ -243,7 +259,7 @@ def sci_subarray_corners(instrument, aperture_name, siaf=None, verbose=False):
         Subarray corner coordinates
 
     """
-    logger = logging.getLogger('mirage.utils.get_siaf_information.sci_subarray_corners')
+    logger = logging.getLogger("mirage.utils.get_siaf_information.sci_subarray_corners")
 
     # get SIAF
     if siaf is None:
@@ -251,7 +267,7 @@ def sci_subarray_corners(instrument, aperture_name, siaf=None, verbose=False):
 
     # get master aperture names
     siaf_detector_layout = iando.read.read_siaf_detector_layout()
-    master_aperture_names = siaf_detector_layout['AperName'].data
+    master_aperture_names = siaf_detector_layout["AperName"].data
 
     # read pysiaf aperture definition file containing DetRef and SciRef values
     siaf_aperture_definitions = iando.read.read_siaf_aperture_definitions(instrument)
@@ -260,16 +276,16 @@ def sci_subarray_corners(instrument, aperture_name, siaf=None, verbose=False):
     aperture = siaf[aperture_name]
 
     # aperture corners in SIAF detector coordinates
-    x_det, y_det = aperture.corners('det', rederive=True)
+    x_det, y_det = aperture.corners("det", rederive=True)
 
     # determine parent aperture, i.e. the underlying full frame SCA aperture
-    index = siaf_aperture_definitions['AperName'].tolist().index(aperture_name)
-    aperture._parent_apertures = siaf_aperture_definitions['parent_apertures'][index]
+    index = siaf_aperture_definitions["AperName"].tolist().index(aperture_name)
+    aperture._parent_apertures = siaf_aperture_definitions["parent_apertures"][index]
 
     # If multiuple apertures are listed as parents keep only the first
-    if ';' in aperture._parent_apertures:
-        logger.info('Multiple parent apertures: {}'.format(aperture._parent_apertures))
-        aperture._parent_apertures = aperture._parent_apertures.split(';')[0]
+    if ";" in aperture._parent_apertures:
+        logger.info("Multiple parent apertures: {}".format(aperture._parent_apertures))
+        aperture._parent_apertures = aperture._parent_apertures.split(";")[0]
 
     if aperture_name in master_aperture_names:
         # if master aperture, use it directly to transform to science frame
@@ -277,11 +293,15 @@ def sci_subarray_corners(instrument, aperture_name, siaf=None, verbose=False):
     elif aperture._parent_apertures is not None:
         # use parent aperture for transformation
         if verbose:
-            logger.info('Using parent {} for {}'.format(aperture._parent_apertures, aperture_name))
+            logger.info(
+                "Using parent {} for {}".format(
+                    aperture._parent_apertures, aperture_name
+                )
+            )
         x_sci, y_sci = siaf[aperture._parent_apertures].det_to_sci(x_det, y_det)
         aperture = siaf[aperture._parent_apertures]
 
-    if instrument.lower() == 'nircam':
+    if instrument.lower() == "nircam":
         if aperture.DetSciParity == 1:
             corner_index = np.array([1, 3])
         elif aperture.DetSciParity == -1:
@@ -289,34 +309,35 @@ def sci_subarray_corners(instrument, aperture_name, siaf=None, verbose=False):
             corner_index = np.array([0, 2])
         x_corner = x_sci[corner_index]
         y_corner = y_sci[corner_index]
-    elif instrument.lower() == 'niriss':
+    elif instrument.lower() == "niriss":
         x_corner_index = np.array([0, 2])
         y_corner_index = np.array([0, 2])
-        if aperture_name == 'NIS_CEN_OSS':
+        if aperture_name == "NIS_CEN_OSS":
             x_corner_index = np.array([1, 3])
             y_corner_index = np.array([3, 1])
         x_corner = x_sci[x_corner_index]
         y_corner = y_sci[y_corner_index]
-        if aperture_name in ['NIS_SUBSTRIP96', 'NIS_SUBSTRIP256']:
+        if aperture_name in ["NIS_SUBSTRIP96", "NIS_SUBSTRIP256"]:
             x_corner = [1, 2048]
-            if aperture_name == 'NIS_SUBSTRIP96':
+            if aperture_name == "NIS_SUBSTRIP96":
                 y_corner = [1803, 1898]
-            if aperture_name == 'NIS_SUBSTRIP256':
+            if aperture_name == "NIS_SUBSTRIP256":
                 y_corner = [1793, 2048]
-    elif instrument.lower() == 'fgs':
+    elif instrument.lower() == "fgs":
         x_corner_index = np.array([0, 2])
         y_corner_index = np.array([0, 2])
-        if aperture_name == 'FGS1_FULL_OSS':
+        if aperture_name == "FGS1_FULL_OSS":
             x_corner_index = np.array([1, 3])
             y_corner_index = np.array([3, 1])
-        if aperture_name == 'FGS2_FULL_OSS':
+        if aperture_name == "FGS2_FULL_OSS":
             x_corner_index = np.array([1, 3])
             y_corner_index = np.array([1, 3])
         x_corner = x_sci[x_corner_index]
         y_corner = y_sci[y_corner_index]
     else:
-        raise NotImplementedError(("Instrument {} not supported for SIAF subarray corners"
-                                   .format(instrument)))
+        raise NotImplementedError(
+            ("Instrument {} not supported for SIAF subarray corners".format(instrument))
+        )
 
     # account for mirage conventions (e.g. 0-based indexing)
     # we also want integer values as these will be indexes
