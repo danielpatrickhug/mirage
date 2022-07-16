@@ -272,7 +272,7 @@ class PointSourceCatalog():
         if self._location_units == 'position_RA_Dec':
             return self._ra
         else:
-            return []
+            return np.array()
 
     @property
     def dec(self):
@@ -280,7 +280,7 @@ class PointSourceCatalog():
         if self._location_units == 'position_RA_Dec':
             return self._dec
         else:
-            return []
+            return np.array()
 
     @property
     def x(self):
@@ -288,7 +288,7 @@ class PointSourceCatalog():
         if self._location_units == 'position_pixels':
             return self._ra
         else:
-            return []
+            return np.array()
 
     @property
     def y(self):
@@ -296,7 +296,7 @@ class PointSourceCatalog():
         if self._location_units == 'position_pixels':
             return self._dec
         else:
-            return []
+            return np.array()
 
     def create_table(self):
         """Create an astropy table containing the catalog
@@ -361,6 +361,7 @@ class GalaxyCatalog(PointSourceCatalog):
     def ellipticity(self):
         """Return Dec values from catalog"""
         return self._ellipticity
+
 
     @property
     def position_angle(self):
@@ -714,27 +715,16 @@ class ImagingTSOCatalog(PointSourceCatalog):
 
 
 class GrismTSOCatalog(PointSourceCatalog):
-    def __init__(self, ra=[], dec=[], x=[], y=[], semimajor_axis=[], orbital_inclination=[],
-                 eccentricity=[], orbital_period=[], longitude_of_periastron=[], limb_dark_model=[],
-                 limb_dark_coeffs=[], time_units=[], start_time=[], end_time=[], inferior_conj=[],
-                 transmission_spectrum=[]):
+    def __init__(self, kwargs):
         """Create instance of a grism TSO catalog
         """
         # Add location information
-        PointSourceCatalog.__init__(self, ra=ra, dec=dec, x=x, y=y)
+        PointSourceCatalog.__init__(self, ra=kwargs['ra'], dec=dec, x=x, y=y)
 
         # Add TSO-specific information
-        self._semimajor_axis = np.array(semimajor_axis)
-        self._orbital_inclination = np.array(orbital_inclination)
-        self._eccentricity = np.array(eccentricity)
-        self._orbital_period = np.array(orbital_period)
-        self._longitude_of_periastron = np.array(longitude_of_periastron)
-        self._limb_dark_model = np.array(limb_dark_model)
-        self._time_units = np.array(time_units)
-        self._start_time = np.array(start_time)
-        self._end_time = np.array(end_time)
-        self._inferior_conj = np.array(inferior_conj)
-        self._transmission_spectrum = np.array(transmission_spectrum)
+        for k, v in kwargs.items():
+            setattr(self, k, np.array(v)
+                    if isinstance(v, list) else v)
 
         # Limb darkening coefficients should be a string of comma-separated
         # numbers
